@@ -11,6 +11,7 @@ return(cds)
 #' @export
 #generate node plot
 #filter = T will display only the nodes at branch points and at the ends of trajectories
+#N controls the density of nodes to display if filter = T (larger values = less dense, N = 1 displays all nodes)
 node_plot <- function(cds, filter = F, N = 50){
 Y <- cds@principal_graph_aux[["UMAP"]]$dp_mst
 d = as.data.frame(t(Y))
@@ -27,3 +28,4 @@ else{
 ggplot(data=d, aes(x=UMAP_1, y=UMAP_2)) + geom_point(size=0.01) + geom_text_repel(data=d, aes(x=UMAP_1, y=UMAP_2), label=rownames(d), size=0.3, hjust = 2, color = "red", max.overlaps = Inf, segment.size = 0.1) + monocle_theme_opts()
 }
 }
+
