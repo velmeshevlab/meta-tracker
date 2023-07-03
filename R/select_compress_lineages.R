@@ -1,3 +1,4 @@
+#extend monocle3 class to add additional slots
 setClass("cell_data_set_ext", contains = "cell_data_set", slots=c(graphs = "list", lineages="list", expression="list", expectation="list", pseudotime="list")) -> cell_data_set_ext
 
 #' @export
@@ -8,8 +9,8 @@ return(cds)
 }
 
 #' @export
-#generate node plot.
-#filter = T will display only the nodes at branch points and at the ends of trajectories.
+#generate node plot
+#filter = T will display only the nodes at branch points and at the ends of trajectories
 node_plot <- function(cds, filter = F, N = 50){
 Y <- cds@principal_graph_aux[["UMAP"]]$dp_mst
 d = as.data.frame(t(Y))
