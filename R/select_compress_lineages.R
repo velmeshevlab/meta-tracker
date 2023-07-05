@@ -12,6 +12,7 @@ return(cds)
 #generate node plot
 #filter = T will display only the nodes at branch points and at the ends of trajectories
 #N controls the density of nodes to display if filter = T (larger values = less dense, N = 1 displays all nodes)
+#comment
 node_plot <- function(cds, filter = F, N = 50){
 Y <- cds@principal_graph_aux[["UMAP"]]$dp_mst
 d = as.data.frame(t(Y))
