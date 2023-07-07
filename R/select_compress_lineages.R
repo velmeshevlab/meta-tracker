@@ -29,6 +29,135 @@ ggplot(data=d, aes(x=UMAP_1, y=UMAP_2)) + geom_point(size=0.01) + geom_text_repe
 }
 }
 
+#' @export
+isolate_graph <- function(cds, start, end, lineage, include_nodes = F){
+#get lineage graph
+reduction_method = "UMAP"
+graph = cds@principal_graph[[reduction_method]]
+#select cells that are 1) progenitor cells from the region of interest (MGE, CGE) or 2) lineage-committed cells
+sub.graph = all_simple_paths(graph, start, end)
+if(include_nodes != F){
+sub.graph = sub.graph[sapply(sub.graph, included, include_nodes = include_nodes)]
+}
+lengths = lengths(sub.graph)
+#get the shortest path
+n = which(lengths==min(lengths))[1]
+sub.graph = sub.graph[[n]]
+input = paste0("cds@graphs$", lineage, " <- make_graph(sub.graph)")
+eval(parse(text=input))
+return(cds)
+}
+
+#' @export
+isolate_lineage <- function(cds, lineage, sel_clusters = F, start_regions = F, starting_clusters = F, subset = FALSE, N = 5, cl = 1){
+input = paste0("sub.graph = cds@graphs$", lineage)
+eval(parse(text=input))
+nodes_UMAP = cds@principal_graph_aux[["UMAP"]]$dp_mst
+if(subset == F){
+nodes_UMAP.sub = as.data.frame(t(nodes_UMAP[,names(V(sub.graph))]))
+}
+else{
+g = principal_graph(cds)[["UMAP"]]
+dd = degree(g)
+names1 = names(dd[dd > 2 | dd == 1])
+names2 = names(dd[dd == 2])
+names2 = sample(names2, length(names2)/subset, replace = F)
+names = c(names1, names2)
+names = intersect(names(V(sub.graph)), names)
+nodes_UMAP.sub = as.data.frame(t(nodes_UMAP[,names]))
+}
+#select cells along the graph
+mean.dist = path.distance(nodes_UMAP.sub)
+r = mean.dist*N
+cells_UMAP = as.data.frame(reducedDims(cds)["UMAP"])
+cells_UMAP = cells_UMAP[,c("UMAP_1", "UMAP_2")]
+sel.cells = cell.selector(nodes_UMAP.sub, cells_UMAP, r, cl = cl)
+#only keep cells in the progenitor and lineage-specific clusters
+sel.cells1 = c()
+sel.cells2 = sel.cells
+if(starting_clusters != F){
+sel.cells1 = names(cds@"clusters"[["UMAP"]]$clusters[cds@"clusters"[["UMAP"]]$clusters %in% starting_clusters])
+}
+if(start_regions != F){
+sel.cells1 = sel.cells1[sel.cells1 %in% rownames(cds@colData[cds@colData$region %in% start_regions,])]
+}
+if(sel_clusters != F){
+sel.cells2 = names(cds@"clusters"[["UMAP"]]$clusters[cds@"clusters"[["UMAP"]]$clusters %in% sel_clusters])
+}
+cells = unique(c(sel.cells1, sel.cells2))
+sel.cells = sel.cells[sel.cells %in% cells]
+#subset the moncole object
+cds_subset = cds[,sel.cells]
+#set the graph, node and cell UMAP coordinates
+principal_graph(cds_subset)[["UMAP"]] <- sub.graph
+cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[,names(V(sub.graph))]
+cds_subset@clusters[["UMAP"]]$partitions <- cds_subset@clusters[["UMAP"]]$partitions[colnames(cds_subset)]
+#recalculate closest vertex for the selected cells
+cells_UMAP = as.data.frame(reducedDims(cds_subset)["UMAP"])
+closest_vertex = apply(cells_UMAP[,c("UMAP_1", "UMAP_2")], 1, calculate_closest_vertex, nodes = as.matrix(nodes_UMAP[,names(V(sub.graph))]))
+closest_vertex = as.data.frame(closest_vertex)
+cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
+source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
+cds_subset <- project2MST(cds_subset, project_point_to_line_segment, F, T, "UMAP", nodes_UMAP[,names(V(sub.graph))])
+cds_subset <- order_cells(cds_subset, root_pr_nodes = c(paste0("Y_", as.character(start))))
+input = paste0("cds@lineages$", lineage, " <- cds_subset")
+eval(parse(text=input))
+return(cds)
+}
+
+#' @export
+path.distance <- function(path){
+dists=c()
+for(i in 2:nrow(path)){
+x1 = path[i-1,1]
+y1 = path[i-1,2]
+x2 = path[i,1]
+y2 = path[i,2]
+d.x = x2 - x1
+d.y = y2 - y1
+dist = sqrt(d.x*d.x + d.y*d.y)
+dists = append(dist,dists)
+}
+return(mean(dists))
+}
+
+cell.selector_sub2 <- function(cell, coords, r){
+x2 = cell[1]
+y2 = cell[2]
+d.x = x2 - coords[1]
+d.y = y2 - coords[2]
+dist = sqrt(d.x*d.x + d.y*d.y)
+if(dist <= r){
+return(TRUE)
+}
+else{
+return(FALSE)
+}
+}
+
+#' @export
+selector_sub <- function(node, cells, r){
+x1 = node[1]
+y1 = node[2]
+res = apply(cells, 1, cell.selector_sub2, coords = c(x1, y1), r = r, simplify = T)
+res = names(res[res == TRUE])
+return(res)
+}
+
+#' @export
+cell.selector <- function(path, cells, r, cl){
+sel.cells = c()
+sel.cells = pbapply(path, 1, selector_sub, cells = cells, r = r, cl = cl, simplify = T)
+return(unique(unlist(sel.cells)))
+}
+
+#' @export
+calculate_closest_vertex <- function(cells, nodes){
+new.pos = as.numeric(cells)
+nearest.idx <- which.min(colSums((nodes - new.pos)^2))
+out = as.integer(gsub("Y_", "", names(nearest.idx)))
+}
+
 compress_lineage_v3 <- function(cds, lineage, start, gene = FALSE, N = 500, cores = F){
   cds_name = deparse(substitute(cds))
   if(gene == FALSE){
