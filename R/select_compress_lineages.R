@@ -570,11 +570,3 @@ fit.m3 <- function(exp.sel, pt, max.pt, model = "expression ~ splines::ns(pseudo
   return(fit)
   }, error=function(cond) {return(rep("NA", N))})
 }
-cds_name = deparse(substitute(cds_subset))
-input = paste0(cds_name, "@expression$", lineage, " <- exp_c$expression")
-eval(parse(text=input))
-input = paste0(cds_name, "@expectation$", lineage, " <- exp_c$expectation")
-eval(parse(text=input))
-input = paste0(cds_name, "@pseudotime$", lineage, " <- exp_c$pseudotime")
-eval(parse(text=input))
-
