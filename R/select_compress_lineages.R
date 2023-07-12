@@ -1,3 +1,38 @@
+monocle_theme_opts <- function()
+{
+  theme(strip.background = element_rect(colour = 'white', fill = 'white')) +
+    theme(panel.border = element_blank()) +
+    theme(axis.line.x = element_line(size=0.25, color="black")) +
+    theme(axis.line.y = element_line(size=0.25, color="black")) +
+    theme(panel.grid.minor.x = element_blank(),
+          panel.grid.minor.y = element_blank()) +
+    theme(panel.grid.major.x = element_blank(),
+          panel.grid.major.y = element_blank()) +
+    theme(panel.background = element_rect(fill='white')) +
+    theme(legend.key=element_blank())
+}
+
+theme_opts <- function()
+{
+  theme(strip.background = element_rect(colour = 'white', fill = 'white')) +
+    theme(plot.title = element_blank()) +
+    theme(panel.border = element_blank()) +
+    theme(axis.line.x = element_blank()) +
+    theme(axis.ticks.x = element_blank()) +
+    theme(axis.text.x = element_blank()) +
+    theme(axis.title.x = element_blank()) +
+    theme(axis.text.y = element_blank()) +
+    theme(axis.title.y = element_blank()) +
+    theme(axis.ticks.y = element_blank()) +
+    theme(axis.line.y = element_line(size=1, color="black")) +
+    theme(panel.grid.minor.x = element_blank(),
+          panel.grid.minor.y = element_blank()) +
+    theme(panel.grid.major.x = element_blank(),
+          panel.grid.major.y = element_blank()) +
+    theme(panel.background = element_rect(fill='white')) +
+    theme(legend.key=element_blank())
+}
+
 #extend monocle3 class to add additional slots
 #' @export
 setClass("cell_data_set_ext", contains = "cell_data_set", slots=c(graphs = "list", lineages="list", expression="list", expectation="list", pseudotime="list")) -> cell_data_set_ext
