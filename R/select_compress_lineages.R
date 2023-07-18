@@ -403,9 +403,16 @@ compress_expression_v3 <- function(cds, lineage, start, gene = FALSE, N = 500, c
     #step <- (pos_1-pos-window)/n_1
     step <- window
     len <- c(len, (pos_1-pos))
+    if(pos != pos_1-1){
     pt.comp_1 = SlidingWindow("mean", pt[pos:(pos_1-1)], window, step)
     UMAP.comp.x_1 = SlidingWindow("mean", UMAP$UMAP_1[pos:(pos_1-1)], window, step)
     UMAP.comp.y_1 = SlidingWindow("mean", UMAP$UMAP_2[pos:(pos_1-1)], window, step)
+      }
+    else{
+      pt.comp_1 = pt[pos:(pos_1-1)]
+      UMAP.comp.x_1 = UMAP$UMAP_1[pos:(pos_1-1)]
+      UMAP.comp.x_2 = UMAP$UMAP_2[pos:(pos_1-1)]
+    }
     ID.comp_1 <- as.character(rep(unique[i], times=length(pt.comp_1)))
     if (length(pt[pos:(pos_1-1)]) <= n_1){
       pt.comp_1 = pt[pos:(pos_1-1)]
