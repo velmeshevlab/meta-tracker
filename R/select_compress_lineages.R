@@ -373,6 +373,7 @@ compress_expression_v3 <- function(cds, lineage, start, gene = FALSE, N = 500, c
   length <- length(unique(exp$ID))
   UMAP <- reducedDims(cds_subset)[["UMAP"]]
   UMAP <- UMAP[rownames(exp),]
+  UMAP = as.data.frame(UMAP)
   pt.comp <- vector(mode = "list", length = length)
   ID.comp <- vector(mode = "list", length = length)
   UMAP.comp.x <- vector(mode = "list", length = length)
