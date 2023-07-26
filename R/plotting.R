@@ -36,7 +36,7 @@ plot_multiple <- function(cds, gene, lineages, meta = NULL, points = T, age.scal
         exp = rep(0, N)
         fit = rep(0, N)
       }
-      dd = cbind(dd, exp, fit)
+      dd = cbind(dd, as.numeric(exp), as.numeric(fit))
       cols = append(cols, paste0("exp_", lineage))
       cols = append(cols, paste0("fit_", lineage))
       fits = c(fits, fit)
