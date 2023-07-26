@@ -1,11 +1,6 @@
 compress_lineage_v3 <- function(cds, lineage, N, cores = F){
   cds_name = deparse(substitute(cds))
-  if(gene == FALSE){
-    input = paste0("compress_expression_v3(",cds_name,", lineage = '", lineage, "', N = ", N, ", cores = ", cores, ")")
-  }
-  else{
-    input = paste0("compress_expression_v3(",cds_name,", lineage = '", lineage, "', N = ", N, ", cores = ", cores, ")")
-  }
+  input = paste0("compress_expression_v3(",cds_name,", lineage = '", lineage, "', N = ", N, ", cores = ", cores, ")")
   exp = eval(parse(text=input))
   input = paste0(cds_name, "@expression$", lineage, " <- exp$expression")
   eval(parse(text=input))
