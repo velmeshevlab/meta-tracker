@@ -80,8 +80,8 @@ compress_expression_v3 <- function(cds, lineage, N, cores = F){
     n_1 <- n[i]
     if (length(pt[pos:(pos_1-1)]) <= n_1){
       pt.comp_1 = pt[pos:(pos_1-1)]
-      UMAP.comp.x_1 = UMAP[,'UMAP_1'][pos:(pos_1-1)]
-      UMAP.comp.y_1 = UMAP[,'UMAP_2'][pos:(pos_1-1)]
+      UMAP.comp.x_1 = UMAP[,'umap_1'][pos:(pos_1-1)]
+      UMAP.comp.y_1 = UMAP[,'umap_2'][pos:(pos_1-1)]
       ID.comp_1 <- as.character(rep(unique[i], times=length(pt.comp_1)))
       age.comp_1 <- as.character(rep(unique_age[i], times=length(pt.comp_1)))
       sex.comp_1 <- as.character(rep(unique_sex[i], times=length(pt.comp_1)))
@@ -93,8 +93,8 @@ compress_expression_v3 <- function(cds, lineage, N, cores = F){
       step <- window
       len <- c(len, (pos_1-pos))
       pt.comp_1 = SlidingWindow("mean", pt[pos:(pos_1-1)], window, step)
-      UMAP.comp.x_1 = SlidingWindow("mean", UMAP[,'UMAP_1'][pos:(pos_1-1)], window, step)
-      UMAP.comp.y_1 = SlidingWindow("mean", UMAP[,'UMAP_2'][pos:(pos_1-1)], window, step)
+      UMAP.comp.x_1 = SlidingWindow("mean", UMAP[,'umap_1'][pos:(pos_1-1)], window, step)
+      UMAP.comp.y_1 = SlidingWindow("mean", UMAP[,'umap_2'][pos:(pos_1-1)], window, step)
       ID.comp_1 <- as.character(rep(unique[i], times=length(pt.comp_1)))
       age.comp_1 <- as.character(rep(unique_age[i], times=length(pt.comp_1)))
       sex.comp_1 <- as.character(rep(unique_sex[i], times=length(pt.comp_1)))
@@ -115,16 +115,16 @@ compress_expression_v3 <- function(cds, lineage, N, cores = F){
       #step = ((pos_1-pos+1-window)/n_1)
       step <- window
       pt.comp_1 = SlidingWindow("mean", pt[pos:pos_1], window, step)
-      UMAP.comp.x_1 = SlidingWindow("mean", UMAP[,'UMAP_1'][pos:(pos_1)], window, step)
-      UMAP.comp.y_1 = SlidingWindow("mean", UMAP[,'UMAP_2'][pos:(pos_1)], window, step)
+      UMAP.comp.x_1 = SlidingWindow("mean", UMAP[,'umap_1'][pos:(pos_1)], window, step)
+      UMAP.comp.y_1 = SlidingWindow("mean", UMAP[,'umap_2'][pos:(pos_1)], window, step)
       ID.comp_1 <- as.character(rep(unique[i+1], times=length(pt.comp_1)))
       age.comp_1 <- as.character(rep(unique_age[i+1], times=length(pt.comp_1)))
       sex.comp_1 <- as.character(rep(unique_sex[i+1], times=length(pt.comp_1)))
       region_broad.comp_1 <- as.character(rep(unique_region_broad[i+1], times=length(pt.comp_1)))
       if (length(pt[pos:pos_1]) <= n_1){
         pt.comp_1 = pt[pos:pos_1]
-        UMAP.comp.x_1 = UMAP[,'UMAP_1'][pos:(pos_1)]
-        UMAP.comp.y_1 = UMAP[,'UMAP_2'][pos:(pos_1)]
+        UMAP.comp.x_1 = UMAP[,'umap_1'][pos:(pos_1)]
+        UMAP.comp.y_1 = UMAP[,'umap_2'][pos:(pos_1)]
         ID.comp_1 <- as.character(rep(unique[i+1], times=length(pt.comp_1)))
         age.comp_1 <- as.character(rep(unique_age[i+1], times=length(pt.comp_1)))
         sex.comp_1 <- as.character(rep(unique_sex[i+1], times=length(pt.comp_1)))
@@ -148,8 +148,8 @@ compress_expression_v3 <- function(cds, lineage, N, cores = F){
     #step_new <- (pos_1-pos-window_new)/(n[max]+eta)
     step_new <- window_new
     pt.comp[[max]] <- SlidingWindow("mean", pt[pos:(pos_1-1)], window_new, step_new)
-    UMAP.comp.x[[max]] <- SlidingWindow("mean", UMAP[,'UMAP_1'][pos:(pos_1-1)], window_new, step_new)
-    UMAP.comp.y[[max]] <- SlidingWindow("mean", UMAP[,'UMAP_2'][pos:(pos_1-1)], window_new, step_new)
+    UMAP.comp.x[[max]] <- SlidingWindow("mean", UMAP[,'umap_1'][pos:(pos_1-1)], window_new, step_new)
+    UMAP.comp.y[[max]] <- SlidingWindow("mean", UMAP[,'umap_2'][pos:(pos_1-1)], window_new, step_new)
     ID.comp[[max]] <- as.character(rep(unique[max], times=length(pt.comp[[max]])))
     age.comp[[max]] <- as.character(rep(unique_age[max], times=length(pt.comp[[max]])))
     sex.comp[[max]] <- as.character(rep(unique_sex[max], times=length(pt.comp[[max]])))
