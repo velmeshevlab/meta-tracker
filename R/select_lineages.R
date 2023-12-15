@@ -129,7 +129,7 @@ combine_lineages <- function(cds, start){
   principal_graph(cds)[["UMAP"]] <- g
   cds@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[,names(V(g))]
   cells_UMAP = as.data.frame(reducedDims(cds)["UMAP"])
-  closest_vertex = apply(cells_UMAP[,c("UMAP_1", "UMAP_2")], 1, calculate_closest_vertex, nodes = as.matrix(nodes_UMAP[,names(V(g))]))
+  closest_vertex = apply(cells_UMAP[,c("umap_1", "umap_2")], 1, calculate_closest_vertex, nodes = as.matrix(nodes_UMAP[,names(V(g))]))
   closest_vertex = as.data.frame(closest_vertex)
   cds@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
   source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
@@ -248,7 +248,7 @@ cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[,names(V(sub.graph
 cds_subset@clusters[["UMAP"]]$partitions <- cds_subset@clusters[["UMAP"]]$partitions[colnames(cds_subset)]
 #recalculate closest vertex for the selected cells
 cells_UMAP = as.data.frame(reducedDims(cds_subset)["UMAP"])
-closest_vertex = apply(cells_UMAP[,c("UMAP_1", "UMAP_2")], 1, calculate_closest_vertex, nodes = as.matrix(nodes_UMAP[,names(V(sub.graph))]))
+closest_vertex = apply(cells_UMAP[,c("umap_1", "umap_2")], 1, calculate_closest_vertex, nodes = as.matrix(nodes_UMAP[,names(V(sub.graph))]))
 closest_vertex = as.data.frame(closest_vertex)
 cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
 source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
@@ -318,7 +318,7 @@ node_Y = (node_coords[2,node1] + node_coords[2,node2])/2
 new_name = paste0("Y_", as.character(length(names(V(graph.old)))+1))
 node_coords = as.data.frame(c(node_X, node_Y))
 colnames(node_coords) = new_name
-rownames(node_coords) = c("UMAP_1", "UMAP_2")
+rownames(node_coords) = c("umap_1", "umap_2")
 cds@principal_graph_aux[["UMAP"]]$dp_mst <- cbind(cds@principal_graph_aux[["UMAP"]]$dp_mst, node_coords)
 graph.new <- add_vertices(graph.old, 1,attr = list(name = new_name))
 graph.new <- add_edges(graph.new, c(node1, new_name))
