@@ -1,4 +1,5 @@
-# This is the analysis guide starting from a monocle 3 object to identify lineage-specific genes and compare conditions within the same lineage.
+# meta-tracker basic tutorial
+This is the analysis guide starting from a monocle 3 object to identify lineage-specific genes and compare conditions within the same lineage.
 
 1. Import the monocle 3 object.
 
