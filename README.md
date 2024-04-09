@@ -3,7 +3,7 @@ This is the analysis guide starting from a monocle 3 object to identify lineage-
 ## Step-by-step tutorial
 1. Import the monocle 3 object.
 
-cds = import_monocle(cds)
+```cds = import_monocle(cds)```
 
 3. Generate a node plot to visualize node names for downstream analysis.
 
