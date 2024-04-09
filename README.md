@@ -1,4 +1,4 @@
-This is the analysis guide starting from a monocle 3 object to identify lineage-specific genes and compare conditions within the same lineage.
+**This is the analysis guide starting from a monocle 3 object to identify lineage-specific genes and compare conditions within the same lineage.**
 
 1. Imoprt the monocle 3 object.
 
