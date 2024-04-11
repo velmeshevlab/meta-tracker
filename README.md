@@ -15,13 +15,17 @@ To fix this issue, we manually connect two nodes so that a new trajectory branch
 ```
   cds = connect_nodes(cds, "Y_277", "Y_721", add_node = T)
 ```
-4.  Isolate trajectory paths and cells along specific lineages. You need to specify the metatracker object, start and end of the trajectory as integer node numbers, name you want to assign to the trajectory, as well as an optional parameter of clusters (if you want to make sure to not include cells from clusters you know belong to a different fate) and nodes to include in the trajectory (in case you want your trajectory to pass through specific points).
-   For instance, here we name our trajectory OL (for oligodendrocytes), specify that it starts from node 495 and ends in node 46 and list the clusters that we want to include.
+4.  Isolate trajectory paths along specific lineages. You need to specify the metatracker object, start and end of the trajectory as integer node numbers, name you want to assign to the trajectory, as well as an optional parameter of nodes to include in the trajectory (in case you want your trajectory to pass through specific points).
+   For instance, here we name our trajectory OL (for oligodendrocytes), specify that it starts from node 495 and ends in node 46 and specify that the trajectory needs to pass through nodes 277 and 721.
 ```
   lineage = "OL"
   start = 495
   end = 46
-  cds<- isolate_graph(cds, start, end, lineage)
+  inc.node = c("Y_277", "Y_721")
+  cds<- isolate_graph(cds, start, end, lineage, include_nodes = inc.node)
+```
+5. Next, we select cells along the trajectory. Optionally, you can specify clusters to consider (if you want to make sure to not include cells from clusters you know belong to a different fate) and adjust the radius around the node to select cells in (N).
+```
   sel.cluster = c("5", "7", "10", "19", "8", "16", "0", "15", "20", "17", "2", "1", "9")
   cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
 ```
