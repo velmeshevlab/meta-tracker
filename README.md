@@ -38,16 +38,16 @@ To fix this issue, we manually connect two nodes so that a new trajectory branch
 ```
 7. Repeat trajectory and cell selection for all lineages you identified in the dataset:
 ```
-lineage = "AST_PP"
-start = 495
-end = 865
-cds<- isolate_graph(cds, start, end, lineage)
-sel.cluster = c("5", "7", "18", "14", "4", "11", "6", "3")
-cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
-lineage = "AST_FB"
-start = 495
-end = 994
-cds<- isolate_graph(cds, start, end, lineage)
-sel.cluster = c("5", "7", "18", "14", "13", "12")
-cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
+  lineage = "AST_PP"
+  start = 495
+  end = 865
+  cds<- isolate_graph(cds, start, end, lineage)
+  sel.cluster = c("5", "7", "18", "14", "4", "11", "6", "3")
+  cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
+  lineage = "AST_FB"
+  start = 495
+  end = 994
+  cds<- isolate_graph(cds, start, end, lineage)
+  sel.cluster = c("5", "7", "18", "14", "13", "12")
+  cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
 ```
