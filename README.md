@@ -6,6 +6,7 @@ This is the analysis guide starting from a monocle 3 object to identify lineage-
   library(monocle3)
   library(igraph)
   library(ggplot2)
+  library(pbapply)
 ```   
 2. Import the monocle 3 object.
 ```
