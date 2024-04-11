@@ -5,7 +5,7 @@ This is the analysis guide starting from a monocle 3 object to identify lineage-
 ```
   cds = import_monocle(cds)
 ```
-2. Generate a node plot to visualize node names for downstream analysis.
+2. Generate a node plot to visualize node names for downstream analysis. You might want to save it as high-res image file to zoom in on specific nodes.
 ```
   node_plot(cds)
 ```
