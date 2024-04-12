@@ -54,3 +54,10 @@ To fix this issue, we manually connect two nodes so that a new trajectory branch
   sel.cluster = c("5", "7", "18", "14", "13", "12")
   cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
 ```
+8. Combine lineages and plot the final trajectories.
+```
+  cds_new = combine_lineages(cds, 495)
+  #calculate pseudotime
+  cds_new = order_cells(cds_new, root_pr_nodes = c("Y_495"))
+  plot_cells(cds_new, color_cells_by = "pseudotime", label_cell_groups=FALSE, label_leaves=FALSE, label_roots = FALSE, label_branch_points=FALSE, graph_label_size=1, cell_size = 0.5, trajectory_graph_color = "cyan", trajectory_graph_segment_size = 1)
+```
