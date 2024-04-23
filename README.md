@@ -7,6 +7,9 @@ This is the analysis guide starting from a monocle 3 object to identify lineage-
   library(igraph)
   library(ggplot2)
   library(pbapply)
+  source_url("https://raw.githubusercontent.com/DmitryVel/ALISTRA/dev/R/lineage.R")
+  source_url("https://raw.githubusercontent.com/DmitryVel/ALISTRA/dev/R/multilineage_plot.R")
+  source_url("https://raw.githubusercontent.com/DmitryVel/ALISTRA/dev/R/cluster_lineages.R")
 ```   
 2. Import the monocle 3 object.
 ```
