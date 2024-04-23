@@ -3,10 +3,11 @@ This is the analysis guide starting from a monocle 3 object to identify lineage-
 ## Part one: select trajectory branches corresponding to specific lineages
 1. Load required packages:
 ```
-  library(monocle3)
-  library(igraph)
-  library(ggplot2)
-  library(pbapply)
+  require(monocle3)
+  require(igraph)
+  require(ggplot2)
+  require(pbapply)
+  require(devtools)
   source_url("https://raw.githubusercontent.com/DmitryVel/ALISTRA/dev/R/lineage.R")
   source_url("https://raw.githubusercontent.com/DmitryVel/ALISTRA/dev/R/multilineage_plot.R")
   source_url("https://raw.githubusercontent.com/DmitryVel/ALISTRA/dev/R/cluster_lineages.R")
