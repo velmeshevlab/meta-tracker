@@ -8,9 +8,13 @@ This is the analysis guide starting from a monocle 3 object to identify lineage-
   require(ggplot2)
   require(pbapply)
   require(devtools)
-  source_url("https://raw.githubusercontent.com/DmitryVel/ALISTRA/dev/R/lineage.R")
-  source_url("https://raw.githubusercontent.com/DmitryVel/ALISTRA/dev/R/multilineage_plot.R")
-  source_url("https://raw.githubusercontent.com/DmitryVel/ALISTRA/dev/R/cluster_lineages.R")
+  require(tradeSeq)
+  require(dplyr)
+  source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/between_lineage_DE.R")
+  source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/compress_lineages.R")
+  source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/differential_expression.R")
+  source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/plotting.R")
+  source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/select_lineages.R")
 ```   
 2. Import the monocle 3 object.
 ```
