@@ -47,7 +47,7 @@ return(cds)
 #generate node plot
 #filter = T will display only the nodes at branch points and at the ends of trajectories
 #N controls the density of nodes to display if filter = T (larger values = less dense, N = 1 displays all nodes)
-node_plot <- function(cds, filter = F, N = 50, size = 0.5){
+node_plot <- function(cds, filter = F, N = 50, label_size = 0.5, point_size = 0.1){
 Y <- cds@principal_graph_aux[["UMAP"]]$dp_mst
 d = as.data.frame(t(Y))
 if(filter == T){
@@ -57,10 +57,10 @@ names1 = names(dd[dd > 2 | dd == 1])
 names2 = names(dd[dd == 2])
 names2 = sample(names2, length(names2)/N, replace = F)
 d.f = d[c(names1, names2),]
-ggplot(data=d, aes(x=umap_1, y=umap_2)) + geom_point(size=0.01) + geom_text_repel(data=d.f, aes(x=umap_1, y=umap_2), label=rownames(d.f), size=size, hjust = 2, color = "red", max.overlaps = Inf, segment.size = 0.1) + monocle_theme_opts()
+ggplot(data=d, aes(x=umap_1, y=umap_2)) + geom_point(size=point_size) + geom_text_repel(data=d.f, aes(x=umap_1, y=umap_2), label=rownames(d.f), size=label_size, hjust = 2, color = "red", max.overlaps = Inf, segment.size = 0.1) + monocle_theme_opts()
 }
 else{
-ggplot(data=d, aes(x=umap_1, y=umap_2)) + geom_point(size=0.01) + geom_text(data=d, aes(x=umap_1, y=umap_2), label=rownames(d), size=size, hjust = 1, color = "red") + monocle_theme_opts()
+ggplot(data=d, aes(x=umap_1, y=umap_2)) + geom_point(size=point_size) + geom_text(data=d, aes(x=umap_1, y=umap_2), label=rownames(d), size=label_size, hjust = 1, color = "red") + monocle_theme_opts()
 }
 }
 
