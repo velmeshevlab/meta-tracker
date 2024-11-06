@@ -1,6 +1,3 @@
-require(tradeSeq)
-require(dplyr)
-
 between_lineage_DE <- function(counts, # A matrix with genes in rows and cells in columns, cells should be aligned in the order of separate lineages
                                pseudotime, # A matrix of pseudotime values, each row represents a cell and each column represents a lineage, the order of lineages should correspond to the order of cells in "counts"
                                cellWeights, # A matrix of cell weights defining the probability that a cell belongs to a particular lineage.
