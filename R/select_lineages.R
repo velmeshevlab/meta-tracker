@@ -58,10 +58,10 @@ names1 = names(dd[dd > 2 | dd == 1])
 names2 = names(dd[dd == 2])
 names2 = sample(names2, length(names2)/N, replace = F)
 d.f = d[c(names1, names2),]
-ggplot(data=d, aes(x=UMAP_1, y=UMAP_2)) + geom_point(size=point_size) + geom_text(data=d.f, aes(x=UMAP_1, y=UMAP_2), label=rownames(d.f), size=label_size, hjust = 2, color = "red") + monocle_theme_opts()
+ggplot(data=d, aes(x=UMAP_1, y=UMAP_2)) + geom_point(size=point_size) + geom_text(data=d.f, aes(x=UMAP_1, y=UMAP_2), label=rownames(d.f), size=label_size, hjust = 2, color = "red", position = position_dodge(width = 1), vjust = -0.5) + monocle_theme_opts()   
 }
 else{
-ggplot(data=d, aes(x=UMAP_1, y=UMAP_2)) + geom_point(size=point_size) + geom_text(data=d, aes(x=UMAP_1, y=UMAP_2), label=rownames(d), size=label_size, hjust = 1, color = "red") + monocle_theme_opts()
+ggplot(data=d, aes(x=UMAP_1, y=UMAP_2)) + geom_point(size=point_size) + geom_text(data=d, aes(x=UMAP_1, y=UMAP_2), label=rownames(d), size=label_size, hjust = 1, color = "red", position = position_dodge(width = 1), vjust = -0.5) + monocle_theme_opts()
 }
 }
 
