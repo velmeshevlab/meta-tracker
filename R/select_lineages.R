@@ -49,6 +49,7 @@ return(cds)
 #N controls the density of nodes to display if filter = T (larger values = less dense, N = 1 displays all nodes)
 node_plot <- function(cds, filter = T, N = 2, label_size = 3, point_size = 1){
 Y <- cds@principal_graph_aux[["UMAP"]]$dp_mst
+rownames(Y) <- c("UMAP_1", "UMAP_2")
 d = as.data.frame(t(Y))
 if(filter == T){
 g = principal_graph(cds)[["UMAP"]]
