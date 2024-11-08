@@ -45,24 +45,12 @@ return(cds)
 
 #' @export
 #generate node plot
-#filter = T will display only the nodes at branch points and at the ends of trajectories
-#N controls the density of nodes to display if filter = T (larger values = less dense, N = 1 displays all nodes)
 node_plot <- function(cds, filter = T, N = 2, label_size = 3, point_size = 1){
 Y <- cds@principal_graph_aux[["UMAP"]]$dp_mst
 rownames(Y) <- c("UMAP_1", "UMAP_2")
 d = as.data.frame(t(Y))
-if(filter == T){
-g = principal_graph(cds)[["UMAP"]]
-dd = degree(g)
-names1 = names(dd[dd > 2 | dd == 1])
-names2 = names(dd[dd == 2])
-names2 = sample(names2, length(names2)/N, replace = F)
-d.f = d[c(names1, names2),]
-ggplot(data=d, aes(x=UMAP_1, y=UMAP_2)) + geom_point(size=point_size) + geom_text(data=d.f, aes(x=UMAP_1, y=UMAP_2, label=rownames(d.f)), size=label_size, hjust = 2, color = "red", vjust = -0.5) + monocle_theme_opts()   
-}
-else{
-ggplot(data=d, aes(x=UMAP_1, y=UMAP_2)) + geom_point(size=point_size) + geom_text(data=d, aes(x=UMAP_1, y=UMAP_2, label=rownames(d)), size=label_size, hjust = 1, color = "red", vjust = -0.5) + monocle_theme_opts()
-}
+p <- ggplot(data=d, aes(x=UMAP_1, y=UMAP_2)) + geom_point(size=point_size, aes(text=rownames(d))) + monocle_theme_opts()
+ggplotly(p)
 }
 
 #' @export
