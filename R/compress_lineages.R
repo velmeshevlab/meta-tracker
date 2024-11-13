@@ -1,6 +1,6 @@
-compress_lineage_v3 <- function(cds, lineage, N, cl = NULL, use_cluster = F){
+compress_lineage_v3 <- function(cds, lineage, N, cores = 1){
   cds_name = deparse(substitute(cds))
-  input = paste0("compress_expression_v3(",cds_name,", lineage = '", lineage, "', N = ", N, ", cl = ", cl, ", use_cluster = ", use_cluster, ")")
+  input = paste0("compress_expression_v3(",cds_name,", lineage = '", lineage, "', N = ", N, ", cores = ", cores, ")")
   exp = eval(parse(text=input))
   input = paste0(cds_name, "@expression$", lineage, " <- exp$expression")
   eval(parse(text=input))
@@ -11,7 +11,7 @@ compress_lineage_v3 <- function(cds, lineage, N, cl = NULL, use_cluster = F){
   eval(parse(text=paste0("return(",cds_name, ")")))
 }
 
-compress_expression_v3 <- function(cds, lineage, N, cl = NULL, use_cluster = F){
+compress_expression_v3 <- function(cds, lineage, N, cores = 1){
   cds_name = deparse(substitute(cds))
   if(lineage != FALSE){
     input = paste0("sel.cells = ",cds_name,"@lineages$", lineage)
@@ -163,29 +163,22 @@ compress_expression_v3 <- function(cds, lineage, N, cl = NULL, use_cluster = F){
   #use sliding window to compress expression with ID information
   len <- c()
   exp.comp <- vector(mode = "list", length = length)
-  print(paste0("Compressing lineage ", lineage, " and fitting curves"))
+  print(paste0("Compressing lineage ", lineage))
   mat <- as.data.frame(exp[,9:ncol(exp)])
   exp.comp <- vector(mode = "list", length = length)
-  exp.comp = pbapply(mat, 2, compress_3, length = length, unique = unique, ID = ID, n = n, N = N, l = 108)
+  exp.comp = pbsapply(mat, compress_3, length = length, unique = unique, ID = ID, n = n, N = N, l = 108, cl = cores)
   exp_data <- cbind(pt.comp, ID.comp, age.comp, sex.comp, region_broad.comp, UMAP.comp.x, UMAP.comp.y, exp.comp)
   exp_data <- as.data.frame(exp_data)
   exp_data$pt.comp <- as.numeric(exp_data$pt.comp)
   exp_data_ordered <- exp_data[order(exp_data$pt.comp), ]
   mat <- exp_data_ordered[,9:(ncol(exp_data_ordered))]
   d = as.data.frame(seq(from=0, to=max.pt, by = max.pt/(N-1)))
-  if(use_cluster == F){
-    fit = pbsapply(mat, fit.m3_3, pt = d, max.pt = max(d), N = N)
-  }
-  else{
-    fit = pbsapply(mat, fit.m3_3, pt = d, max.pt = max(d), N = N, cl = cl)
-  }
+  print("Fitting curves")
+  fit = pbsapply(mat, fit.m3_3, pt = d, max.pt = max(d), N = N, cl = cores)
   fit = apply(fit, 2, as.numeric)
   return(list("expression" = exp_data_ordered, "expectation" = fit, "pseudotime" = d))
   exp$expression[exp$expression < 0] <- 0
   exp$expectation[exp$expectation < 0] <- 0
-  if(use_cluster == T){
-    stopCluster(cl)
-  }
   return(exp)
 }
 
