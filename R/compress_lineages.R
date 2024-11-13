@@ -183,7 +183,7 @@ compress_expression_v3 <- function(cds, lineage, N, cl = NULL, use_cluster = F){
   return(list("expression" = exp_data_ordered, "expectation" = fit, "pseudotime" = d))
   exp$expression[exp$expression < 0] <- 0
   exp$expectation[exp$expectation < 0] <- 0
-  if(cl != F){
+  if(use_cluster == T){
     stopCluster(cl)
   }
   return(exp)
