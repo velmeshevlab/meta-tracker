@@ -72,6 +72,7 @@ To fix this issue, we manually connect two nodes so that a new trajectory branch
 ```
 ## Part two: compressing trajectories and identifying lineage-specific genes
 Now, we want to identify and visualize lineage-specific genes. We do this by identifying dynamically expressed genes in each trajectory and comparing trajectories to find lineage-specific genes.
+
 2.1. First step is to compress lineages along pseudotime to speed up the analysis for large datasets. Here, we make 500 meta-cells along each trajectory. We use parallel processing to speed up this step.
 ```
   #create cluster for parallel processing
