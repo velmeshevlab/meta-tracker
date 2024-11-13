@@ -11,6 +11,7 @@ This is the analysis guide starting from a monocle 3 object to identify lineage-
   require(tradeSeq)
   require(dplyr)
   require(plotly)
+  require(ggnewscale)
   source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/between_lineage_DE.R")
   source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/compress_lineages.R")
   source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/differential_expression.R")
@@ -79,11 +80,6 @@ Now, we want to identify and visualize lineage-specific genes. We do this by ide
 ### 2.1. First step is to compress lineages along pseudotime to speed up the analysis for large datasets.
 Here, we make 500 meta-cells along each trajectory. We use parallel processing to speed up this step. Meta-cells are only made from the same biological sample.
 ```
-  #create cluster for parallel processing
-  cl <- makeCluster(16)
-  #make sure that the evobiR package is installed and loaded on each node
-  clusterEvalQ(cl, install.packages("evobiR"))
-  clusterEvalQ(cl, library(evobiR))
   #filter genes that are expressed in at least 10% of the cells
   factor = 0.1
   data = counts(cds_new)
@@ -92,4 +88,6 @@ Here, we make 500 meta-cells along each trajectory. We use parallel processing t
   cds_new = compress_lineage_v3(cds_new, "OL", N = 500, cores = 16)
   cds_new = compress_lineage_v3(cds_new, "AST_FB", N = 500, cores = 16)
   cds_new = compress_lineage_v3(cds_new, "AST_PP", N = 500, cores = 16)
+  #plot known lineage-specific genes to make sure everything worked
+  plot_multiple(cds.sel, "PLP1", c("OL", "AST_FB"), text.size = 28, plot.title.size = 48, legend.key.size = 1, legend.text.size = 14) + theme(legend.position = "none")
 ```
