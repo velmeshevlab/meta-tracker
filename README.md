@@ -85,6 +85,7 @@ Here, we make 500 meta-cells along each trajectory. We use parallel processing t
   data = counts(cds_new)
   rows=rownames(data)[rowSums(data> 0) > factor*ncol(data)]
   cds_new = cds_new[rows]
+  #compress lineages by generating sample-wise metacells
   cds_new = compress_lineage_v3(cds_new, "OL", N = 500, cores = 16)
   cds_new = compress_lineage_v3(cds_new, "AST_FB", N = 500, cores = 16)
   cds_new = compress_lineage_v3(cds_new, "AST_PP", N = 500, cores = 16)
