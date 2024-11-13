@@ -89,5 +89,5 @@ Here, we make 500 meta-cells along each trajectory. We use parallel processing t
   cds_new = compress_lineage_v3(cds_new, "AST_FB", N = 500, cores = 16)
   cds_new = compress_lineage_v3(cds_new, "AST_PP", N = 500, cores = 16)
   #plot known lineage-specific genes to make sure everything worked
-  plot_multiple(cds.sel, "PLP1", c("OL", "AST_PP", "AST_FB"), text.size = 28, plot.title.size = 48, legend.key.size = 1, legend.text.size = 14) + theme(legend.position = "none")
+  plot_multiple(cds_new, "PLP1", c("OL", "AST_PP", "AST_FB"), text.size = 28, plot.title.size = 48, legend.key.size = 1, legend.text.size = 14) + theme(legend.position = "none")
 ```
