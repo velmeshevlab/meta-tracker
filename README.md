@@ -70,3 +70,20 @@ To fix this issue, we manually connect two nodes so that a new trajectory branch
   cds_new = order_cells(cds_new, root_pr_nodes = c("Y_495"))
   plot_cells(cds_new, color_cells_by = "pseudotime", label_cell_groups=FALSE, label_leaves=FALSE, label_roots = FALSE, label_branch_points=FALSE, graph_label_size=1, cell_size = 0.5, trajectory_graph_color = "cyan", trajectory_graph_segment_size = 1)
 ```
+Now, we want to identify and visualize lineage-specific genes. We do this by identifying dynamically expressed genes in each trajectory and comparing trajectories to find lineage-specific genes.
+9. First step is to compress lineages along pseudotime to speed up the analysis for large datasets. Here, we make 500 meta-cells along each trajectory. We use parallel processing to speed up this step.
+```
+  #create cluster for parallel processing
+  cl <- makeCluster(16)
+  #make sure that the evobiR package is installed and loaded on each node
+  clusterEvalQ(cl, install.packages("evobiR"))
+  clusterEvalQ(cl, library(evobiR))
+  #filter genes that are expressed in at least 10% of the cells
+  factor = 0.1
+  data = counts(cds_new)
+  rows=rownames(data)[rowSums(data> 0) > factor*ncol(data)]
+  cds_new = cds_new[rows]
+  cds_new = compress_lineage_v3(cds_new, "OL", N = 500, cores = 8)
+  cds_new = compress_lineage_v3(cds_new, "AST_FB", N = 500, cores = 8)
+  cds_new = compress_lineage_v3(cds_new, "AST_PP", N = 500, cores = 8)
+```
