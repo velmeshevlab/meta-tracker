@@ -1,4 +1,4 @@
-compress_lineage_v3 <- function(cds, lineage, N, cores = F){
+compress_lineage_v3 <- function(cds, lineage, N, cl = F){
   cds_name = deparse(substitute(cds))
   input = paste0("compress_expression_v3(",cds_name,", lineage = '", lineage, "', N = ", N, ", cores = ", cores, ")")
   exp = eval(parse(text=input))
@@ -11,17 +11,12 @@ compress_lineage_v3 <- function(cds, lineage, N, cores = F){
   eval(parse(text=paste0("return(",cds_name, ")")))
 }
 
-compress_expression_v3 <- function(cds, lineage, N, cores = F){
+compress_expression_v3 <- function(cds, lineage, N, cl = F){
   cds_name = deparse(substitute(cds))
-  if(cores != F){
-    cl <- makeCluster(cores)
-    clusterEvalQ(cl, c(library(evobiR)))
-  }
   if(lineage != FALSE){
     input = paste0("sel.cells = ",cds_name,"@lineages$", lineage)
     eval(parse(text=input))
   }
-  clusterEvalQ(cl, library(evobiR))
   sel.cells = sel.cells[sel.cells %in% colnames(cds)]
   cds_subset = cds[,sel.cells]
   family = stats::quasipoisson()
