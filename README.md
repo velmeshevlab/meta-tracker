@@ -31,8 +31,9 @@ To fix this issue, we manually connect two nodes so that a new trajectory branch
 ```
   cds = connect_nodes(cds, "Y_288", "Y_82", add_node = T)
 ```
-### 1.5.  Isolate trajectory paths along specific lineages. You need to specify the metatracker object, start and end of the trajectory as integer node numbers, name you want to assign to the trajectory, as well as an optional parameter of nodes to include in the trajectory (in case you want your trajectory to pass through specific points).
-   For instance, here we name our trajectory OL (for oligodendrocytes), specify that it starts from node 495 and ends in node 46 and specify that the trajectory needs to pass through nodes 277 and 721.
+### 1.5.  Isolate trajectory paths along specific lineages. 
+You need to specify the metatracker object, start and end of the trajectory as integer node numbers, name you want to assign to the trajectory, as well as an optional parameter of nodes to include in the trajectory (in case you want your trajectory to pass through specific points).
+For instance, here we name our trajectory OL (for oligodendrocytes), specify that it starts from node 495 and ends in node 46 and specify that the trajectory needs to pass through nodes 277 and 721.
 ```
   lineage = "OL"
   start = 495
