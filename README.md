@@ -41,13 +41,14 @@ For instance, here we name our trajectory OL (for oligodendrocytes), specify tha
   inc.node = c("Y_277", "Y_721")
   cds<- isolate_graph(cds, start, end, lineage, include_nodes = inc.node)
 ```
-### 1.6. Next, we select cells along the trajectory. Optionally, you can specify clusters to consider (if you want to make sure to not include cells from clusters you know belong to a different fate), adjust the radius around the node to select cells in (N) and enable multithreading with cl parameter. You can first plot clusters using monocle3's plot_cells function.
+### 1.6. Select cells along the trajectory. 
+Optionally, you can specify clusters to consider (if you want to make sure to not include cells from clusters you know belong to a different fate), adjust the radius around the node to select cells in (N) and enable multithreading with cl parameter. You can first plot clusters using monocle3's plot_cells function.
 ```
   plot_cells(cds, label_roots = F, label_leaves = F, label_branch_points = F, group_label_size = 5)
   sel.cluster = c("5", "7", "10", "19", "8", "16", "0", "15", "20", "17", "2", "1", "9")
   cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
 ```
-### 1.7. Repeat trajectory and cell selection for all lineages you identified in the dataset:
+Repeat trajectory and cell selection for all lineages you identified in the dataset.
 ```
   #protoplasmic astrocytes
   lineage = "AST_PP"
@@ -65,7 +66,7 @@ For instance, here we name our trajectory OL (for oligodendrocytes), specify tha
   sel.cluster = c("5", "7", "18", "14", "13", "12")
   cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
 ```
-### 1.8. Combine lineages and plot the final trajectories.
+### 1.7. Combine lineages and plot the final trajectories.
 ```
   cds_new = combine_lineages(cds, 495)
   #calculate pseudotime
