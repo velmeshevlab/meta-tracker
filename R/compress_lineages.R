@@ -1,4 +1,4 @@
-compress_lineage_v3 <- function(cds, lineage, N, cl = NULL){
+compress_lineage_v3 <- function(cds, lineage, N, cl = 1){
   cds_name = deparse(substitute(cds))
   input = paste0("compress_expression_v3(",cds_name,", lineage = '", lineage, "', N = ", N, ", cl = ", cl, ")")
   exp = eval(parse(text=input))
@@ -11,7 +11,7 @@ compress_lineage_v3 <- function(cds, lineage, N, cl = NULL){
   eval(parse(text=paste0("return(",cds_name, ")")))
 }
 
-compress_expression_v3 <- function(cds, lineage, N, cl = NULL){
+compress_expression_v3 <- function(cds, lineage, N, cl = 1){
   cds_name = deparse(substitute(cds))
   if(lineage != FALSE){
     input = paste0("sel.cells = ",cds_name,"@lineages$", lineage)
@@ -173,7 +173,7 @@ compress_expression_v3 <- function(cds, lineage, N, cl = NULL){
   exp_data_ordered <- exp_data[order(exp_data$pt.comp), ]
   mat <- exp_data_ordered[,9:(ncol(exp_data_ordered))]
   d = as.data.frame(seq(from=0, to=max.pt, by = max.pt/(N-1)))
-  if(cl == NULL){
+  if(cl == 1){
     fit = pbsapply(mat, fit.m3_3, pt = d, max.pt = max(d), N = N)
   }
   else{
