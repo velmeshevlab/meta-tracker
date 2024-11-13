@@ -76,7 +76,8 @@ Repeat trajectory and cell selection for all lineages you identified in the data
 ## Part two: compressing trajectories and identifying lineage-specific genes
 Now, we want to identify and visualize lineage-specific genes. We do this by identifying dynamically expressed genes in each trajectory and comparing trajectories to find lineage-specific genes.
 
-### 2.1. First step is to compress lineages along pseudotime to speed up the analysis for large datasets. Here, we make 500 meta-cells along each trajectory. We use parallel processing to speed up this step.
+### 2.1. First step is to compress lineages along pseudotime to speed up the analysis for large datasets.
+Here, we make 500 meta-cells along each trajectory. We use parallel processing to speed up this step. Meta-cells are only made from the same biological sample.
 ```
   #create cluster for parallel processing
   cl <- makeCluster(16)
