@@ -70,6 +70,7 @@ To fix this issue, we manually connect two nodes so that a new trajectory branch
   cds_new = order_cells(cds_new, root_pr_nodes = c("Y_495"))
   plot_cells(cds_new, color_cells_by = "pseudotime", label_cell_groups=FALSE, label_leaves=FALSE, label_roots = FALSE, label_branch_points=FALSE, graph_label_size=1, cell_size = 0.5, trajectory_graph_color = "cyan", trajectory_graph_segment_size = 1)
 ```
+## Part two: compressing trajectories and identifying lineage-specific genes
 Now, we want to identify and visualize lineage-specific genes. We do this by identifying dynamically expressed genes in each trajectory and comparing trajectories to find lineage-specific genes.
 9. First step is to compress lineages along pseudotime to speed up the analysis for large datasets. Here, we make 500 meta-cells along each trajectory. We use parallel processing to speed up this step.
 ```
