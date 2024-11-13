@@ -1,6 +1,6 @@
 compress_lineage_v3 <- function(cds, lineage, N, cl = F){
   cds_name = deparse(substitute(cds))
-  input = paste0("compress_expression_v3(",cds_name,", lineage = '", lineage, "', N = ", N, ", cores = ", cores, ")")
+  input = paste0("compress_expression_v3(",cds_name,", lineage = '", lineage, "', N = ", N, ", cl = ", cl, ")")
   exp = eval(parse(text=input))
   input = paste0(cds_name, "@expression$", lineage, " <- exp$expression")
   eval(parse(text=input))
@@ -173,7 +173,7 @@ compress_expression_v3 <- function(cds, lineage, N, cl = F){
   exp_data_ordered <- exp_data[order(exp_data$pt.comp), ]
   mat <- exp_data_ordered[,9:(ncol(exp_data_ordered))]
   d = as.data.frame(seq(from=0, to=max.pt, by = max.pt/(N-1)))
-  if(cores != F){
+  if(cl != F){
     fit = pbsapply(mat, fit.m3_3, pt = d, max.pt = max(d), N = N, cl = cl)
   }
   else{
@@ -183,7 +183,7 @@ compress_expression_v3 <- function(cds, lineage, N, cl = F){
   return(list("expression" = exp_data_ordered, "expectation" = fit, "pseudotime" = d))
   exp$expression[exp$expression < 0] <- 0
   exp$expectation[exp$expectation < 0] <- 0
-  if(cores != F){
+  if(cl != F){
     stopCluster(cl)
   }
   return(exp)
