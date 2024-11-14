@@ -19,5 +19,6 @@ within_lineage_DE <- function(cds, #metatracker object
   #res_sig<-res_full[res_full$pvalue<p,]
   res <- getSmootherPvalues(gamList)
   res_sig = res[res<p,]
+  res_sig = res_sig[order(res_sig)]
   return(res_sig)
 }
