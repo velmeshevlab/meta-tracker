@@ -13,10 +13,11 @@ within_lineage_DE <- function(cds, #metatracker object
   counts = t(as.matrix(sapply(d[,8:ncol(d)], as.numeric))) #a matrix of expression values, with genes in rows and cells in columns
   pseudotime = as.matrix(cds@pseudotime[[lineage]]) #a matrix of pseudotime values, each row for a cell
   cell_wt<-as.matrix(rep(1,ncol(counts)),ncol=1)
-  gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt)
+  gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt,sce=FALSE)
   #res<-tradeSeq::conditionTest(gamList,global=TRUE,pairwise=pairwise,lineages=FALSE)
-  pvalLineage <- getSmootherPvalues(gamList)
-  res_full<-res[!is.na(res$pvalue),]
-  res_sig<-res_full[res_full$pvalue<p,]
+  #res_full<-res[!is.na(res$pvalue),]
+  #res_sig<-res_full[res_full$pvalue<p,]
+  res <- getSmootherPvalues(gamList)
+  res_sig = res[res<p,]
   return(res_sig)
 }
