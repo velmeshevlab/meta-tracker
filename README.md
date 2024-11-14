@@ -94,5 +94,7 @@ Here, we make 500 meta-cells along each trajectory. We use parallel processing t
 ```
 ### 2.2. Now, we apply functions from the tradeSeq package to the compressed metacells to identify dynamically expressed genes in each lineage.
 ```
+  #optionally, use multicore
+  multicoreParam <- MulticoreParam(workers = 8)
   gamList<-within_lineage_DE(cds = cds_new, lineage = "OL", nknots = 3)
 ```
