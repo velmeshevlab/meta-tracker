@@ -5,7 +5,7 @@ within_lineage_DE <- function(cds, #metatracker object
                           lineage, #name of the lineage to analyze
                           conditions = NULL, #a vector of condition information
                           nknots = 3, #number of knots used to fit the GAM
-                          pairwise=TRUE #pairwise comparison between different conditions
+                          pairwise=TRUE, #pairwise comparison between different conditions
                           p = 0.05 #p value threshold
                           ){
   counts = cds_new@expression[lineage] #a matrix of expression values, with genes in rows and cells in columns
