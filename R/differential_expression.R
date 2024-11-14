@@ -14,6 +14,6 @@ within_lineage_DE <- function(cds, #metatracker object
   gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt)
   res<-tradeSeq::conditionTest(gamList,global=TRUE,pairwise=pairwise,lineages=FALSE)
   res_full<-res[!is.na(res$pvalue),]
-  res_sig<-res_full[res_full$pvalue<,p]
+  res_sig<-res_full[res_full$pvalue<p,]
   return(res_sig)
 }
