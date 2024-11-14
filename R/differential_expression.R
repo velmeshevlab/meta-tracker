@@ -9,7 +9,7 @@ within_lineage_DE <- function(cds, #metatracker object
                           p = 0.05 #p value threshold
                           ){
   d =cds_new@expression[[lineage]]
-  conditions = d[,conditions]
+  #conditions = d[,conditions]
   counts = as.matrix(sapply(d[,8:ncol(d)], as.numeric)) #a matrix of expression values, with genes in rows and cells in columns
   pseudotime = as.matrix(cds_new@pseudotime[[lineage]]) #a matrix of pseudotime values, each row for a cell
   cell_wt<-as.matrix(rep(1,ncol(counts)),ncol=1)
