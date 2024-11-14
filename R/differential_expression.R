@@ -14,7 +14,8 @@ within_lineage_DE <- function(cds, #metatracker object
   pseudotime = as.matrix(cds@pseudotime[[lineage]]) #a matrix of pseudotime values, each row for a cell
   cell_wt<-as.matrix(rep(1,ncol(counts)),ncol=1)
   gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt)
-  res<-tradeSeq::conditionTest(gamList,global=TRUE,pairwise=pairwise,lineages=FALSE)
+  #res<-tradeSeq::conditionTest(gamList,global=TRUE,pairwise=pairwise,lineages=FALSE)
+  pvalLineage <- getSmootherPvalues(gamList)
   res_full<-res[!is.na(res$pvalue),]
   res_sig<-res_full[res_full$pvalue<p,]
   return(res_sig)
