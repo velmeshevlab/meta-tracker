@@ -96,5 +96,5 @@ Here, we make 500 meta-cells along each trajectory. We use parallel processing t
 ```
   #optionally, use multicore
   multicoreParam <- MulticoreParam(workers = 8)
-  gamList<-within_lineage_DE(cds = cds_new, lineage = "OL", nknots = 3)
+  res = within_lineage_DE(cds = cds_new, lineage = "OL")
 ```
