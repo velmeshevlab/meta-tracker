@@ -92,3 +92,7 @@ Here, we make 500 meta-cells along each trajectory. We use parallel processing t
   #plot known lineage-specific genes to make sure everything worked
   plot_multiple(cds_new, "PLP1", c("OL", "AST_PP", "AST_FB"), text.size = 28, plot.title.size = 48, legend.key.size = 1, legend.text.size = 14) + theme(legend.position = "none")
 ```
+### 2.2. Now, we apply functions from the tradeSeq package to the compressed metacells to identify dynamically expressed genes in each lineage.
+```
+  gamList<-within_lineage_DE(cds = cds_new, lineage = "OL", nknots = 3)
+```
