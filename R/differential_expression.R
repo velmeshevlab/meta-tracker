@@ -8,8 +8,9 @@ within_lineage_DE <- function(cds, #metatracker object
                           pairwise=TRUE, #pairwise comparison between different conditions
                           p = 0.05 #p value threshold
                           ){
-  counts = as.matrix(cds_new@expression[[lineage]]) #a matrix of expression values, with genes in rows and cells in columns
-  pseudotime = cds_new@pseudotime[[lineage]] #a matrix of pseudotime values, each row for a cell
+  d =cds_new@expression[[lineage]] 
+  counts = as.matrix(sapply(d[,8:ncol(d)], as.numeric)) #a matrix of expression values, with genes in rows and cells in columns
+  pseudotime = as.matrix(cds_new@pseudotime[[lineage]]) #a matrix of pseudotime values, each row for a cell
   cell_wt<-as.matrix(rep(1,ncol(counts)),ncol=1)
   gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt)
   res<-tradeSeq::conditionTest(gamList,global=TRUE,pairwise=pairwise,lineages=FALSE)
