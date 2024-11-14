@@ -17,8 +17,11 @@ within_lineage_DE <- function(cds, #metatracker object
   #res<-tradeSeq::conditionTest(gamList,global=TRUE,pairwise=pairwise,lineages=FALSE)
   #res_full<-res[!is.na(res$pvalue),]
   #res_sig<-res_full[res_full$pvalue<p,]
-  res <- getSmootherPvalues(gamList)
-  res_sig = res[res<p,]
-  res_sig = res_sig[order(res_sig)]
+  p_value <- getSmootherPvalues(gamList)
+  p_value = p_value[p_value<p,]
+  statLineage <- getSmootherTestStats(gamList)
+  statLineage = statLineage[names(p_value),]
+  final_res = cbind(statLineage, p_value)
+  final_res= final_res[order(final_res[,1], decreasing = T),]
   return(res_sig)
 }
