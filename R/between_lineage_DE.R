@@ -22,6 +22,7 @@ calculate_weight_matrix <- function(cds)
     # Assign weights based on membership
     weight_matrix[i, membership] <- 1 / num_lists
   }
+  return(weight_matrix)
   }
 
 between_lineage_DE <- function(counts, # A matrix with genes in rows and cells in columns, cells should be aligned in the order of separate lineages
