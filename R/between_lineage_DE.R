@@ -1,6 +1,7 @@
 calculate_weight_matrix <- function(cds) #calculate metacell weights based on lineage membership. If a metacell belongs to more than one lineage, divide the weights between the lineages.
   {
   #need to make it work with metacells. How to determine membership of metacells for different lineages? The ones on the shared trajectory path should be the same.
+  #alternatively, determine based on the distance to the graph nodes.
   lineages = names(cds@lineages)
   all_cells = c()
   lineage_list = list()
