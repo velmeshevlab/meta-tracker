@@ -1,4 +1,4 @@
-calculate_weight_matrix <- function(cds)
+calculate_weight_matrix <- function(cds) #calculate metacell weights based on lineage membership. If a metacell belongs to more than one lineage, divide the weights between the lineages.
   {
   lineages = names(cds@lineages)
   all_cells = c()
