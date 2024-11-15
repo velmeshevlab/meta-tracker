@@ -8,7 +8,7 @@ calculate_weight_matrix <- function(cds)
     all_cells = c(all_cells, cds@lineages[[lineage]])
     lineage_list[[i]] <- cds@lineages[[lineage]]
     i <- i + 1
-  }
+    }
   all_cells = unique(all_cells)
   weight_matrix <- matrix(0, nrow = length(all_cells), ncol = length(lineages))
   rownames(weight_matrix) <- all_cells
@@ -21,10 +21,21 @@ calculate_weight_matrix <- function(cds)
     num_lists <- sum(membership)
     # Assign weights based on membership
     weight_matrix[i, membership] <- 1 / num_lists
-  }
+    }
   return(weight_matrix)
   }
 
+lineage_specific_genes <- function(cds, cellWeights){
+  lineages = names(cds@lineages)
+  counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-7,ncol = 0)
+  for(lineage in lineages){
+    d = cds@expression[[lineage]]
+    d = t(as.matrix(sapply(d[,8:ncol(d)], as.numeric)))
+    counts <- cbind(counts, d)
+    }
+  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots)
+}
+                         
 between_lineage_DE <- function(counts, # A matrix with genes in rows and cells in columns, cells should be aligned in the order of separate lineages
                                pseudotime, # A matrix of pseudotime values, each row represents a cell and each column represents a lineage, the order of lineages should correspond to the order of cells in "counts"
                                cellWeights, # A matrix of cell weights defining the probability that a cell belongs to a particular lineage.
