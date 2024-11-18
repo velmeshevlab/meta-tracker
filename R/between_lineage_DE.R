@@ -20,7 +20,7 @@ calculate_dynamic_FC_gene <- function(gene, cds, lineage){
   FCs
 }
 
-lineage_specific_genes <- function(cds, U = NULL, nknots = 6){
+lineage_specific_genes <- function(cds, U = NULL, nknots = 6, parallel = F){
   lineages = names(cds@lineages)
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-7,ncol = 0)
   all_metacells = c()
@@ -56,7 +56,7 @@ lineage_specific_genes <- function(cds, U = NULL, nknots = 6){
     }
   colnames(pseudotime) <- lineages
   rownames(pseudotime) <- all_metacells
-  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots)
+  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots, parallel = parallel)
   res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
   res
 }
