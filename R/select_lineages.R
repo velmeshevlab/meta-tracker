@@ -1,3 +1,7 @@
+#extend monocle3 class to add additional slots
+#' @export
+setClass("metatracker_data_set", contains = "cell_data_set", slots=c(graphs = "list", lineages="list", expression="list", expectation="list", pseudotime="list", dynamic_genes="list", lineage_genes="list")) -> metatracker_data_set
+
 monocle_theme_opts <- function()
 {
   theme(strip.background = element_rect(colour = 'white', fill = 'white')) +
@@ -32,10 +36,6 @@ theme_opts <- function()
     theme(panel.background = element_rect(fill='white')) +
     theme(legend.key=element_blank())
 }
-
-#extend monocle3 class to add additional slots
-#' @export
-setClass("cell_data_set_ext", contains = "cell_data_set", slots=c(graphs = "list", lineages="list", expression="list", expectation="list", pseudotime="list")) -> cell_data_set_ext
 
 #' @export
 import_monocle <-function(cds){
