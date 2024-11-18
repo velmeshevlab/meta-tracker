@@ -79,10 +79,21 @@ lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, para
   FCs = t(FCs)
   FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
   p_values_sel = p_values_sel[rownames(FCs),]
+  combined_pvalue <- apply(p_values_sel, 1, get_meta_p)
   final_res = cbind(p_values_sel, FCs)
   final_res
 }
-                         
+
+get_meta_p <- function(Ps){
+  nonZero = length(which(Ps!=0))
+  if(nonZero >= 2){
+    sumlog(Ps)$p
+  }
+  else{
+    0
+      }
+  }
+
 between_lineage_DE <- function(counts, # A matrix with genes in rows and cells in columns, cells should be aligned in the order of separate lineages
                                pseudotime, # A matrix of pseudotime values, each row represents a cell and each column represents a lineage, the order of lineages should correspond to the order of cells in "counts"
                                cellWeights, # A matrix of cell weights defining the probability that a cell belongs to a particular lineage.
