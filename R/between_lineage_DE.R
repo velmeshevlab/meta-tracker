@@ -1,4 +1,9 @@
-calculate_dynamic_FC <- function(cds, lineage){
+calculate_dynamic_FC <- function(cds, lineage, genes){
+  FC_matrix = sapply(genes, calculate_dynamic_FC_gene, cds = cds, lineage = lineage)
+  rownames(cds) <- names(cds@lineages)[names(cds@lineages) != lineage]
+  }
+
+calculate_dynamic_FC_gene <- function(gene, cds, lineage){
   exp1 = cds@expectation[[lineage]]
   pt = c(1:nrow(exp1))
   FCs = c()
