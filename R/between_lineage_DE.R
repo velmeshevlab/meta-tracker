@@ -27,7 +27,7 @@ calculate_weight_matrix <- function(cds) #calculate metacell weights based on li
   return(weight_matrix)
   }
 
-lineage_specific_genes <- function(cds, cellWeights){
+lineage_specific_genes <- function(cds, U = NULL, nknots = 6){
   lineages = names(cds@lineages)
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-7,ncol = 0)
   for(lineage in lineages){
@@ -35,6 +35,15 @@ lineage_specific_genes <- function(cds, cellWeights){
     d = t(as.matrix(sapply(d[,8:ncol(d)], as.numeric)))
     counts <- cbind(counts, d)
     }
+  all_metacells = c()
+  for(lineage in lineages){
+    metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]])))
+    all_metacells <- c(all_metacells, metacells)
+    }
+  cellWeights <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
+  rownames(membership_matrix) <- all_members
+  colnames(membership_matrix) <- lineages
+  
   gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots)
 }
                          
