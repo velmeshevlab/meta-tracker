@@ -43,11 +43,12 @@ lineage_specific_genes <- function(cds, U = NULL, nknots = 6){
     lineage_list[[i]] <- metacells
     i <- i + 1
     }
+  names(lineage_list) <- lineages
   cellWeights <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
-  rownames(membership_matrix) <- all_metacells
-  colnames(membership_matrix) <- lineages
+  rownames(cellWeights) <- all_metacells
+  colnames(cellWeights) <- lineages
   for (list_name in names(lineage_list)) {
-    membership_matrix[, list_name] <- as.numeric(all_metacells %in% lists[[list_name]])
+    cellWeights[, list_name] <- as.numeric(all_metacells %in% lineage_list[[list_name]])
     }
   gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots)
 }
