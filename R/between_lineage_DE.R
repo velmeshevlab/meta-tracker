@@ -1,31 +1,17 @@
-calculate_weight_matrix <- function(cds) #calculate metacell weights based on lineage membership. If a metacell belongs to more than one lineage, divide the weights between the lineages.
-  {
-  #need to make it work with metacells. How to determine membership of metacells for different lineages? The ones on the shared trajectory path should be the same.
-  #alternatively, determine based on the distance to the graph nodes.
-  lineages = names(cds@lineages)
-  all_cells = c()
-  lineage_list = list()
-  i = 1
-  for(lineage in lineages){
-    all_cells = c(all_cells, cds@lineages[[lineage]])
-    lineage_list[[i]] <- cds@lineages[[lineage]]
-    i <- i + 1
+calculate_dynamic_FC <- function(cds, lineage){
+  exp1 = cds@expectation[[lineage]]
+  pt = c(1:nrow(exp1))
+  FCs = c()
+  for(lin in names(cds@lineages)){
+    if(lin != lineage){
+      exp2 = cds@expectation[[lin]]
+      auc_dataset1 <- trapz(pt, exp1[,gene])
+      auc_dataset2 <- trapz(pt, exp2[,gene])
+      auc_difference <- log2(auc_dataset1/auc_dataset2)
+      FCs <- c(FCs, auc_difference)
+      }
     }
-  all_cells = unique(all_cells)
-  weight_matrix <- matrix(0, nrow = length(all_cells), ncol = length(lineages))
-  rownames(weight_matrix) <- all_cells
-  colnames(weight_matrix) <- names(cds@lineages)
-  for (i in seq_along(all_cells)) {
-    member <- all_cells[i]
-    # Check membership in each list
-    membership <- sapply(lineage_list, function(lst) member %in% lst)
-    # Determine the number of lists the member belongs to
-    num_lists <- sum(membership)
-    # Assign weights based on membership
-    weight_matrix[i, membership] <- 1 / num_lists
-    }
-  return(weight_matrix)
-  }
+}
 
 lineage_specific_genes <- function(cds, U = NULL, nknots = 6){
   lineages = names(cds@lineages)
