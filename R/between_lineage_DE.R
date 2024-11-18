@@ -11,6 +11,7 @@ calculate_dynamic_FC <- function(cds, lineage){
       FCs <- c(FCs, auc_difference)
       }
     }
+  FCs
 }
 
 lineage_specific_genes <- function(cds, U = NULL, nknots = 6){
