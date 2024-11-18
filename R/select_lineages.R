@@ -39,7 +39,7 @@ theme_opts <- function()
 
 #' @export
 import_monocle <-function(cds){
-cds <- as(cds,"cell_data_set_ext")
+cds <- as(cds,"metatracker_data_set")
 return(cds)
 }
 
