@@ -64,6 +64,7 @@ lineage_specific_genes <- function(cds, U = NULL, nknots = 6){
   colnames(pseudotime) <- lineages
   rownames(pseudotime) <- all_metacells
   gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots)
+  res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
 }
                          
 between_lineage_DE <- function(counts, # A matrix with genes in rows and cells in columns, cells should be aligned in the order of separate lineages
