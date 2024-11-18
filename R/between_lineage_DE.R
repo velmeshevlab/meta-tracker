@@ -32,8 +32,8 @@ lineage_specific_genes <- function(cds, U = NULL, nknots = 6){
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-7,ncol = 0)
   all_metacells = c()
   lineage_list = list()
+  pt_list = list()
   i = 1
-  pseudotime = matrix(,nrow = nrow(cds@pseudotime[[lineages[1]]]),ncol = 0)
   for(lineage in lineages){
     metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]])))
     d = cds@expression[[lineage]]
@@ -42,19 +42,27 @@ lineage_specific_genes <- function(cds, U = NULL, nknots = 6){
     counts <- cbind(counts, d)
     all_metacells <- c(all_metacells, metacells)
     lineage_list[[i]] <- metacells
+    pt = cds@pseudotime[[lineage]][,1]
+    names(pt) <- metacells
+    pt_list[[i]] <- pt
     i <- i + 1
-    pt = cds@pseudotime[[lineage]] #a matrix of pseudotime values, each row for a cell
-    pseudotime <- cbind(pseudotime, pt)
     }
-  colnames(pseudotime) <- lineages
-  rownames(pseudotime) <- all_metacells
   names(lineage_list) <- lineages
+  names(pt_list) <- lineages
   cellWeights <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
   rownames(cellWeights) <- all_metacells
   colnames(cellWeights) <- lineages
   for (list_name in names(lineage_list)) {
     cellWeights[, list_name] <- as.numeric(all_metacells %in% lineage_list[[list_name]])
     }
+  pseudotime <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
+  rownames(pseudotime) <- all_metacells
+  colnames(pseudotime) <- lineages
+  for (list_name in names(pt_list)) {
+    pseudotime[names(pt_list[[list_name]]), list_name] <- pt_list[[list_name]]
+    }
+  colnames(pseudotime) <- lineages
+  rownames(pseudotime) <- all_metacells
   gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots)
 }
                          
