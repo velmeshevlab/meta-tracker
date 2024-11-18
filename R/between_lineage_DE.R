@@ -80,7 +80,7 @@ lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, para
   FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
   p_values_sel = p_values_sel[rownames(FCs_sel),]
   combined_pvalue <- apply(p_values_sel, 1, get_meta_p)
-  average_FC = apply(p_values_sel, 1, average_FC)
+  average_FC = apply(p_values_sel, 1, FCs_sel)
   final_res = cbind(p_values_sel, FCs_sel)
   final_res
 }
