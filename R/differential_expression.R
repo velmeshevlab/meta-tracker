@@ -7,7 +7,8 @@ within_lineage_DE <- function(cds, #metatracker object
                           nknots = 3, #number of knots used to fit the GAM
                           pairwise=TRUE, #pairwise comparison between different conditions
                           contrast_type = "end",
-                          p = 0.05 #p value threshold
+                          p = 0.05, #p value threshold
+                          parallel = F
                           ){
   d =cds@expression[[lineage]]
   #conditions = d[,conditions]
@@ -24,7 +25,7 @@ within_lineage_DE <- function(cds, #metatracker object
   #statLineage = statLineage[names(p_value),]
   #final_res = cbind(statLineage, p_value)
   #final_res= final_res[order(final_res[,1], decreasing = T),]
-  gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt)
+  gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt, parallel = parallel)
   res = associationTest(gamList, contrastType = contrast_type)
   res_sig = res[res$pvalue<p,]
   res_sig = res_sig[order(res_sig$waldStat, decreasing = T),]
