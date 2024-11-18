@@ -13,6 +13,7 @@ This is the analysis guide starting from a monocle 3 object to identify lineage-
   library(plotly)
   library(ggnewscale)
   library(pracma)
+  library(metap)
   source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/between_lineage_DE.R")
   source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/compress_lineages.R")
   source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/differential_expression.R")
