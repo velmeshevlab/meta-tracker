@@ -33,6 +33,7 @@ lineage_specific_genes <- function(cds, U = NULL, nknots = 6){
   all_metacells = c()
   lineage_list = list()
   i = 1
+  pseudotime = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-7,ncol = 0)
   for(lineage in lineages){
     metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]])))
     d = cds@expression[[lineage]]
@@ -42,7 +43,11 @@ lineage_specific_genes <- function(cds, U = NULL, nknots = 6){
     all_metacells <- c(all_metacells, metacells)
     lineage_list[[i]] <- metacells
     i <- i + 1
+    pt = as.matrix(cds@pseudotime[[lineage]]) #a matrix of pseudotime values, each row for a cell
+    pseudotime <- cbind(pseudotime, pt)
     }
+  colnames(pseudotime) <- lineages
+  rownames(pseudotime) <- all_metacells
   names(lineage_list) <- lineages
   cellWeights <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
   rownames(cellWeights) <- all_metacells
