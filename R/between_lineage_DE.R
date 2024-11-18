@@ -78,10 +78,18 @@ lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, para
   FCs = calculate_dynamic_FC(cds, test_lineage, genes)
   FCs = t(FCs)
   FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
-  p_values_sel = p_values_sel[rownames(FCs),]
+  p_values_sel = p_values_sel[rownames(FCs_sel),]
   combined_pvalue <- apply(p_values_sel, 1, get_meta_p)
-  final_res = cbind(p_values_sel, FCs)
+  average_FC = apply(p_values_sel, 1, average_FC)
+  final_res = cbind(p_values_sel, FCs_sel)
   final_res
+}
+
+average_FC <- function(FC){
+  linear_values <- 2^FC
+  mean_linear <- mean(linear_values)
+  mean_log2 <- log2(mean_linear)
+  mean_log2
 }
 
 get_meta_p <- function(Ps){
