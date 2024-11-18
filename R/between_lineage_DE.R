@@ -1,4 +1,5 @@
 calculate_dynamic_FC <- function(cds, lineage, genes){
+  genes = genes[genes %in% colnames(cds@expectation[[lineage]])]
   FC_matrix = sapply(genes, calculate_dynamic_FC_gene, cds = cds, lineage = lineage)
   rownames(FC_matrix) <- names(cds@lineages)[names(cds@lineages) != lineage]
   FC_matrix
@@ -20,7 +21,7 @@ calculate_dynamic_FC_gene <- function(gene, cds, lineage){
   FCs
 }
 
-lineage_specific_genes <- function(cds, U = NULL, nknots = 6, parallel = F){
+lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05){
   lineages = names(cds@lineages)
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-7,ncol = 0)
   all_metacells = c()
@@ -58,7 +59,27 @@ lineage_specific_genes <- function(cds, U = NULL, nknots = 6, parallel = F){
   rownames(pseudotime) <- all_metacells
   gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots, parallel = parallel)
   res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
-  res
+  index = which(test_lineage == lineages)
+  p_list = c()
+  p_names = c()
+  for(linege in lineages){
+    index2 = which(linege == lineages)
+    if(index != index2){
+      p_name = paste0("pvalue_", index, "vs", index2)
+      p_name_new = paste0("pvalue_", test_lineage, "vs", linege)
+      p_list <- c(p_list, p_name)
+      p_names <- c(p_names, p_name_new)
+      }
+  }
+  p_values = res[,p_list]
+  colnames(p_values) <- p_names
+  p_values_sel = p_values[rowSums(p_values < p_cutoff) == ncol(p_values), ]
+  genes = rownames(p_values_sel)
+  FCs = calculate_dynamic_FC(cds, test_lineage, genes)
+  FCs = t(FCs)
+  p_values_sel = p_values_sel[rownames(FCs),]
+  final_res = cbind(p_values_sel, FCs)
+  final_res
 }
                          
 between_lineage_DE <- function(counts, # A matrix with genes in rows and cells in columns, cells should be aligned in the order of separate lineages
