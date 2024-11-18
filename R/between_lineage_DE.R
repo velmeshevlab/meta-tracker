@@ -1,6 +1,6 @@
 calculate_dynamic_FC <- function(cds, lineage, genes){
   FC_matrix = sapply(genes, calculate_dynamic_FC_gene, cds = cds, lineage = lineage)
-  rownames(cds) <- names(cds@lineages)[names(cds@lineages) != lineage]
+  rownames(FC_matrix) <- names(cds@lineages)[names(cds@lineages) != lineage]
   FC_matrix
   }
 
