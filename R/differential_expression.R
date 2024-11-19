@@ -29,5 +29,6 @@ within_lineage_DE <- function(cds, #metatracker object
   res = associationTest(gamList, contrastType = contrast_type)
   res_sig = res[res$pvalue<p,]
   res_sig = res_sig[order(res_sig$waldStat, decreasing = T),]
-  return(res_sig)
+  cds@dynamic_genes[[lineage]] <- res_sig
+  return(cds)
 }
