@@ -67,7 +67,12 @@ lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, para
   for(linege in lineages){
     index2 = which(linege == lineages)
     if(index != index2){
-      p_name = paste0("pvalue_", index, "vs", index2)
+      if(index<index2){
+        p_name = paste0("pvalue_", index, "vs", index2)
+        }
+        else{
+        p_name = paste0("pvalue_", index2, "vs", index)
+        }
       p_name_new = paste0("pvalue_", test_lineage, "vs", linege)
       p_list <- c(p_list, p_name)
       p_names <- c(p_names, p_name_new)
