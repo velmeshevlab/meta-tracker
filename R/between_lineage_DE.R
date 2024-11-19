@@ -85,7 +85,8 @@ lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, para
   final_res = cbind(p_values_sel, FCs_sel, combined_pvalue, average_FC)
   colnames(final_res) <- c(colnames_old, c("meta_p", "average_FC"))
   final_res = final_res[with(final_res, order(meta_p, -average_FC)), ]
-  final_res
+  cds@lineage_genes[[test_lineage]] <- final_res
+  cds
 }
 
 average_FC <- function(FC){
