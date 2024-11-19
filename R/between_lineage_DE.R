@@ -41,6 +41,8 @@ lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, para
     pt_list[[i]] <- pt
     i <- i + 1
     }
+  dynamic_genes = rownames(cds@dynamic_genes[[test_lineage]])
+  counts = counts[dynamic_genes,]
   names(lineage_list) <- lineages
   names(pt_list) <- lineages
   cellWeights <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
