@@ -102,3 +102,12 @@ Here, we make 500 meta-cells along each trajectory. We use parallel processing t
   cds_new <- within_lineage_DE(cds = cds_new, lineage = "AST_PP", parallel = T)
   cds_new <- within_lineage_DE(cds = cds_new, lineage = "AST_FB", parallel = T)
 ```
+### 2.3. Fianlly, we can identify lineage-specific genes. We do it by comparing each lineage to all other lineages and calculating meta p value and average fold change.
+###      We only keep the genes that have significant p values in all lineage comparisons and are also dynamically expressed.
+```
+  #optionally, use multicore
+  multicoreParam <- MulticoreParam(workers = 8)
+  cds_new <- lineage_specific_genes(cds = cds_new, test_lineage = "OL", parallel = T)
+  cds_new <- lineage_specific_genes(cds = cds_new, test_lineage = "AST_PP", parallel = T)
+  cds_new <- lineage_specific_genes(cds = cds_new, test_lineage = "AST_FB", parallel = T)
+```
