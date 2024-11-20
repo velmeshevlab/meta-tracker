@@ -107,13 +107,13 @@ Here, we make 500 meta-cells along each trajectory. We use parallel processing t
 ```
   #optionally, use multicore
   multicoreParam <- MulticoreParam(workers = 8)
-  cds_new <- lineage_specific_genes(cds = cds_new, test_lineages = c("OL"), parallel = T)
-  cds_new <- lineage_specific_genes(cds = cds_new, test_lineage = c("AST_PP"), parallel = T)
-  cds_new <- lineage_specific_genes(cds = cds_new, test_lineage = c("AST_FB"), parallel = T)
+  cds_new <- lineage_specific_genes(cds = cds_new, test_lineage = "OL", parallel = T)
+  cds_new <- lineage_specific_genes(cds = cds_new, test_lineage = "AST_PP", parallel = T)
+  cds_new <- lineage_specific_genes(cds = cds_new, test_lineage = "AST_FB", parallel = T)
 ```
 ### 2.4. For most lineages, we don't want to only find genes specific to terminal cell types but also shared between related lineages (in this case, protoplasmic and fibrous astrocytes).
 ```
   #optionally, use multicore
   multicoreParam <- MulticoreParam(workers = 8)
-  cds_new <- lineage_specific_genes(cds = cds_new, test_lineages = c("AST_PP", "AST_FB"), name = "AST", parallel = T)
+  cds_new <- branch_specific_genes(cds = cds_new, test_lineages = c("AST_PP", "AST_FB"), name = "AST", parallel = T)
 ```
