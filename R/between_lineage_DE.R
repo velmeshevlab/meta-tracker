@@ -37,7 +37,7 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
     }
   genes = unique(genes)
   for(lineage in lineages){
-    genes = genes[genes %in% rownames(cds@expectation[[lineage]])]
+    genes = genes[genes %in% colnames(cds@expectation[[lineage]])]
     }
   all_Ps <- matrix(0, nrow = length(genes), ncol = 0) 
   for(test_lineage in test_lineages){
