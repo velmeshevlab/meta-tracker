@@ -96,7 +96,12 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
   colnames(pseudotime) <- lineages
   rownames(pseudotime) <- all_metacells
   gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots, parallel = parallel)
-  res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
+  if(length(lineages) == 2){
+    res = tradeSeq::patternTest(models = gamlist, global = T)
+  }
+  else{
+    res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
+    }
   index = which(test_lineage == lineages)
   p_list = c()
   p_names = c()
