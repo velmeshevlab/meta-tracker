@@ -145,7 +145,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     }
     p_values = res[,p_list]
     colnames(p_values) <- p_names
-    if(pvalue != F){
+    if(p_cutoff != F){
       p_values_sel = as.matrix(p_values[rowSums(p_values < p_cutoff) == ncol(p_values), ])
       }
     else{
