@@ -73,7 +73,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     i <- i + 1
     }
   dynamic_genes = rownames(cds@dynamic_genes[[test_lineage]])
-  if(genes == NULL){
+  if(length(genes) > 0){
     counts = counts[dynamic_genes,]
   }
   else{
