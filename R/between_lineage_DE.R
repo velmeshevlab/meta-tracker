@@ -23,7 +23,7 @@ calculate_dynamic_FC_gene <- function(gene, cds, lineage){
 
 lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1){
     lineages = names(cds@lineages)
-    lineage_genes = get_lineage_genes(cds, test_lineage, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1, lineages = lineages)
+    lineage_genes = get_lineage_genes(cds, test_lineage, U = U, nknots = nknots, parallel = parallel, p_cutoff = p_cutoff, FC_cutoff = FC_cutoff, lineages = lineages)
     cds@lineage_genes[[test_lineage]] <- lineage_genes
     cds
 }
