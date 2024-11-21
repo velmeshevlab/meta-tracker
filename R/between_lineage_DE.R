@@ -39,12 +39,15 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
   for(lineage in lineages){
     genes = genes[genes %in% colnames(cds@expectation[[lineage]])]
     }
-  all_Ps <- matrix(0, nrow = length(genes), ncol = 0) 
+  all_Ps <- matrix(0, nrow = length(genes), ncol = 0)
+  all_FCs <- matrix(0, nrow = length(genes), ncol = 0)
   for(test_lineage in test_lineages){
     lineage_genes = get_lineage_genes(cds, test_lineage, genes = genes, U = U, nknots = nknots, parallel = parallel, p_cutoff = p_cutoff, FC_cutoff = FC_cutoff, lineages = lineages[!(lineages %in% test_lineages)])
     lineage_genes = lineage_genes[,1:(ncol(lineage_genes)-2)]
     Ps = lineage_genes[,1:(ncol(lineage_genes)/2)]
     FCs = lineage_genes[,((ncol(lineage_genes)/2)+1):ncol(lineage_genes)]
+    all_Ps = cbind(all_Ps, Ps)
+    all_FCs = cbind(all_FCs, FCs)
     }
 }
 
