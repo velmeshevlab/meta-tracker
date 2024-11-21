@@ -5,11 +5,11 @@ calculate_dynamic_FC <- function(cds, lineage, genes){
   FC_matrix
   }
 
-calculate_dynamic_FC_gene <- function(gene, cds, lineage){
+calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
   exp1 = cds@expectation[[lineage]]
   pt = c(1:nrow(exp1))
   FCs = c()
-  for(lin in names(cds@lineages)){
+  for(lin in names(lineages)){
     if(lin != lineage){
       exp2 = cds@expectation[[lin]]
       auc_dataset1 <- trapz(pt, exp1[,gene])
@@ -124,7 +124,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
   }
   p_values_sel = p_values[rowSums(p_values < p_cutoff) == ncol(p_values), ]
   genes = rownames(p_values_sel)
-  FCs = calculate_dynamic_FC(cds, test_lineage, genes)
+  FCs = calculate_dynamic_FC(cds, test_lineage, genes, lineages)
   FCs = t(FCs)
   FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
   p_values_sel = p_values_sel[rownames(FCs_sel),]
