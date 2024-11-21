@@ -145,15 +145,19 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     }
     p_values = res[,p_list]
     colnames(p_values) <- p_names
-    p_values_sel = as.matrix(p_values[rowSums(p_values < p_cutoff) == ncol(p_values), ])
+    if(pvalue != F){
+      p_values_sel = as.matrix(p_values[rowSums(p_values < p_cutoff) == ncol(p_values), ])
+      }
+    else{
+      p_values_sel = as.matrix(p_values,]
+      }
     gene_names = rownames(p_values_sel)
     FCs = calculate_dynamic_FC(cds, test_lineage, gene_names, lineages)
     FCs = t(FCs)
     if(FC_cutoff != F){
-    FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
+      FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
       }
-    else
-      {
+    else{
       FCs_sel = FCs
       }
     p_values_sel = p_values_sel[rownames(FCs_sel),]
@@ -166,13 +170,24 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     final_res
   }
   else{
-    res_sel = res[res$pvalue < p_cutoff,]
+    if(pvalue != F){
+      res_sel = res[res$pvalue < p_cutoff,]
+      }
+    else{
+      res_sel = res
+      }
     p_values_sel = as.matrix(res_sel[,"pvalue"])
     rownames(p_values_sel) <- rownames(res_sel)
     colnames(p_values_sel) <- paste0("pvalue_", test_lineage, "vs", lineages[lineages != test_lineage])
     gene_names = rownames(p_values_sel)
     FCs = calculate_dynamic_FC_single(cds, test_lineage, gene_names, lineages[lineages != test_lineage])
-    FCs_sel = FCs[FCs >= FC_cutoff]
+    if(FC_cutoff != F){
+      FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
+      }
+    else
+      {
+      FCs_sel = FCs
+      }
     p_values_sel = p_values_sel[names(FCs_sel),]
     final_res = as.data.frame(cbind(p_values_sel, FCs_sel))
     colnames(final_res) <- c("pvalue", "FC")
