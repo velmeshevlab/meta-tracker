@@ -157,6 +157,12 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     colnames(p_values_sel) <- paste0("pvalue_", test_lineage, "vs", lineages[lineages != test_lineage])
     gene_names = rownames(p_values_sel)
     FCs = calculate_dynamic_FC_single(cds, test_lineage, gene_names, lineages[lineages != test_lineage])
+    FCs_sel = FCs[FCs >= FC_cutoff]
+    p_values_sel = p_values_sel[names(FCs_sel),]
+    final_res = as.data.frame(cbind(p_values_sel, FCs_sel))
+    colnames(final_res) <- c("pvalue", "FC")
+    final_res = final_res[with(final_res, order(pvalue, -FC)), ]
+    final_res
   }
   }
 
