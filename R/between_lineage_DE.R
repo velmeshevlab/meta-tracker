@@ -60,7 +60,7 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
   all_FCs <- matrix(0, nrow = length(genes), ncol = 0)
   for(test_lineage in test_lineages){
     print(paste0("Testing lineage ", test_lineage))
-    lineage_genes = get_lineage_genes(cds, test_lineage, genes = genes, U = U, nknots = nknots, parallel = parallel, p_cutoff = 1, FC_cutoff = NULL, lineages = c(test_lineage, lineages[!(lineages %in% test_lineages)]))
+    lineage_genes = get_lineage_genes(cds, test_lineage, genes = genes, U = U, nknots = nknots, parallel = parallel, p_cutoff = 1, FC_cutoff = F, lineages = c(test_lineage, lineages[!(lineages %in% test_lineages)]))
     if(ncol(lineage_genes) == 2){
       Ps = as.matrix(lineage_genes[,1])
       colnames(Ps) <- paste0("pvalue_",  test_lineage)
@@ -149,7 +149,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     gene_names = rownames(p_values_sel)
     FCs = calculate_dynamic_FC(cds, test_lineage, gene_names, lineages)
     FCs = t(FCs)
-    if(FC_cutoff != NULL){
+    if(FC_cutoff != F){
     FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
       }
     else
