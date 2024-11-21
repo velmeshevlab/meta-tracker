@@ -149,7 +149,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
       p_values_sel = as.matrix(p_values[rowSums(p_values < p_cutoff) == ncol(p_values), ])
       }
     else{
-      p_values_sel = as.matrix(p_values,]
+      p_values_sel = as.matrix(p_values)
       }
     gene_names = rownames(p_values_sel)
     FCs = calculate_dynamic_FC(cds, test_lineage, gene_names, lineages)
