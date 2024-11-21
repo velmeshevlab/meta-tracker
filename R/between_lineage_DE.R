@@ -30,15 +30,25 @@ lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, para
 
 branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1){
   lineages = names(cds@lineages)
+  genes = c()
   for(test_lineage in test_lineages){
-    lineage_genes = get_lineage_genes(cds, test_lineage, U = U, nknots = nknots, parallel = parallel, p_cutoff = p_cutoff, FC_cutoff = FC_cutoff, lineages = lineages[!(lineages %in% test_lineages)])
+    dynamic_genes = rownames(cds@dynamic_genes[[test_lineage]])
+    genes = c(genes, dynamic_genes)
+    }
+  genes = unique(genes)
+  for(lineage in lineages){
+    genes = genes[genes %in% rownames(cds@expectation[[lineage]])]
+    }
+  all_Ps <- matrix(0, nrow = length(genes), ncol = 0) 
+  for(test_lineage in test_lineages){
+    lineage_genes = get_lineage_genes(cds, test_lineage, genes = genes, U = U, nknots = nknots, parallel = parallel, p_cutoff = p_cutoff, FC_cutoff = FC_cutoff, lineages = lineages[!(lineages %in% test_lineages)])
     lineage_genes = lineage_genes[,1:(ncol(lineage_genes)-2)]
     Ps = lineage_genes[,1:(ncol(lineage_genes)/2)]
     FCs = lineage_genes[,((ncol(lineage_genes)/2)+1):ncol(lineage_genes)]
     }
 }
 
-get_lineage_genes <- function(cds, test_lineage, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1, lineages = NULL){
+get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1, lineages = NULL){
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-7,ncol = 0)
   all_metacells = c()
   lineage_list = list()
@@ -58,7 +68,12 @@ get_lineage_genes <- function(cds, test_lineage, U = NULL, nknots = 6, parallel 
     i <- i + 1
     }
   dynamic_genes = rownames(cds@dynamic_genes[[test_lineage]])
-  counts = counts[dynamic_genes,]
+  if(genes == NULL){
+    counts = counts[dynamic_genes,]
+  }
+  else{
+    counts = counts[genes,]
+  }
   names(lineage_list) <- lineages
   names(pt_list) <- lineages
   cellWeights <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
