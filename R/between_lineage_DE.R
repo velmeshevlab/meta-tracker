@@ -28,6 +28,14 @@ lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, para
     cds
 }
 
+branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1){
+  lineages = names(cds@lineages)
+  for(test_lineage in test_lineages){
+    lineage_genes = get_lineage_genes(cds, test_lineage, U = U, nknots = nknots, parallel = parallel, p_cutoff = p_cutoff, FC_cutoff = FC_cutoff, lineages = lineages[!(lineages %in% test_lineages)])
+    lineage_genes = lineage_genes[,1:(ncol(lineage_genes)-2)]
+    }
+}
+
 get_lineage_genes <- function(cds, test_lineage, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1, lineages = NULL){
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-7,ncol = 0)
   all_metacells = c()
