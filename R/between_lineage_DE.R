@@ -170,7 +170,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     final_res
   }
   else{
-    if(pvalue != F){
+    if(p_cutoff != F){
       res_sel = res[res$pvalue < p_cutoff,]
       }
     else{
