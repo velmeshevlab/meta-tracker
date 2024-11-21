@@ -45,7 +45,7 @@ lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, para
     cds
 }
 
-branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1){
+branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F){
   lineages = names(cds@lineages)
   genes = c()
   for(test_lineage in test_lineages){
@@ -60,7 +60,7 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
   all_FCs <- matrix(0, nrow = length(genes), ncol = 0)
   for(test_lineage in test_lineages){
     print(paste0("Testing lineage ", test_lineage))
-    lineage_genes = get_lineage_genes(cds, test_lineage, genes = genes, U = U, nknots = nknots, parallel = parallel, p_cutoff = 1, FC_cutoff = F, lineages = c(test_lineage, lineages[!(lineages %in% test_lineages)]))
+    lineage_genes = get_lineage_genes(cds, test_lineage, genes = genes, U = U, nknots = nknots, parallel = parallel, p_cutoff = F, FC_cutoff = F, lineages = c(test_lineage, lineages[!(lineages %in% test_lineages)]))
     if(ncol(lineage_genes) == 2){
       Ps = as.matrix(lineage_genes[,1])
       colnames(Ps) <- paste0("pvalue_",  test_lineage)
