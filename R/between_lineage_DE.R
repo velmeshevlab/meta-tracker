@@ -96,31 +96,32 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
   colnames(pseudotime) <- lineages
   rownames(pseudotime) <- all_metacells
   gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots, parallel = parallel)
-  if(length(lineages) == 2){
-    res = tradeSeq::patternTest(models = gamlist, global = T)
+  res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
+  if(length(lineages) > 2){
+    index = which(test_lineage == lineages)
+    p_list = c()
+    p_names = c()
+    for(linege in lineages){
+      index2 = which(linege == lineages)
+      if(index != index2){
+        if(index<index2){
+          p_name = paste0("pvalue_", index, "vs", index2)
+          }
+          else{
+          p_name = paste0("pvalue_", index2, "vs", index)
+          }
+        p_name_new = paste0("pvalue_", test_lineage, "vs", linege)
+        p_list <- c(p_list, p_name)
+        p_names <- c(p_names, p_name_new)
+        }
+    }
+    p_values = res[,p_list]
+    colnames(p_values) <- p_names
   }
   else{
-    res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
-    }
-  index = which(test_lineage == lineages)
-  p_list = c()
-  p_names = c()
-  for(linege in lineages){
-    index2 = which(linege == lineages)
-    if(index != index2){
-      if(index<index2){
-        p_name = paste0("pvalue_", index, "vs", index2)
-        }
-        else{
-        p_name = paste0("pvalue_", index2, "vs", index)
-        }
-      p_name_new = paste0("pvalue_", test_lineage, "vs", linege)
-      p_list <- c(p_list, p_name)
-      p_names <- c(p_names, p_name_new)
-      }
+    p_values = as.matrix(res[,"pvalue"])
+    colnames(p_values) <- paste0("pvalue_", test_lineage, "vs", lineages[lineages != test_lineage])
   }
-  p_values = res[,p_list]
-  colnames(p_values) <- p_names
   p_values_sel = p_values[rowSums(p_values < p_cutoff) == ncol(p_values), ]
   genes = rownames(p_values_sel)
   FCs = calculate_dynamic_FC(cds, test_lineage, genes)
