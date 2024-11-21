@@ -149,7 +149,13 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     gene_names = rownames(p_values_sel)
     FCs = calculate_dynamic_FC(cds, test_lineage, gene_names, lineages)
     FCs = t(FCs)
+    if(FC_cutoff != NULL){
     FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
+      }
+    else
+      {
+      FCs_sel = FCs
+      }
     p_values_sel = p_values_sel[rownames(FCs_sel),]
     combined_pvalue <- apply(p_values_sel, 1, get_meta_p)
     average_FC = apply(FCs_sel, 1, average_FC)
