@@ -119,25 +119,27 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     }
     p_values = res[,p_list]
     colnames(p_values) <- p_names
+    p_values_sel = as.matrix(p_values[rowSums(p_values < p_cutoff) == ncol(p_values), ])
+    gene_names = rownames(p_values_sel)
+    FCs = calculate_dynamic_FC(cds, test_lineage, gene_names, lineages)
+    FCs = t(FCs)
+    FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
+    p_values_sel = p_values_sel[rownames(FCs_sel),]
+    combined_pvalue <- apply(p_values_sel, 1, get_meta_p)
+    average_FC = apply(FCs_sel, 1, average_FC)
+    colnames_old = c(colnames(p_values_sel), colnames(FCs_sel))
+    final_res = cbind(p_values_sel, FCs_sel, combined_pvalue, average_FC)
+    colnames(final_res) <- c(colnames_old, c("meta_p", "average_FC"))
+    final_res = final_res[with(final_res, order(meta_p, -average_FC)), ]
+    final_res
   }
   else{
-    p_values = as.matrix(res[,"pvalue"])
-    colnames(p_values) <- paste0("pvalue_", test_lineage, "vs", lineages[lineages != test_lineage])
+    res_sel = res[res$pvalue < p_cutoff,]
+    p_values_sel = as.matrix(res_sel[,"pvalue"])
+    rownames(p_values_sel) <- rownames(res_sel)
+    colnames(p_values_sel) <- paste0("pvalue_", test_lineage, "vs", lineages[lineages != test_lineage])
   }
-  p_values_sel = p_values[rowSums(p_values < p_cutoff) == ncol(p_values), ]
-  gene_names = rownames(p_values_sel)
-  FCs = calculate_dynamic_FC(cds, test_lineage, gene_names, lineages)
-  FCs = t(FCs)
-  FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
-  p_values_sel = p_values_sel[rownames(FCs_sel),]
-  combined_pvalue <- apply(p_values_sel, 1, get_meta_p)
-  average_FC = apply(FCs_sel, 1, average_FC)
-  colnames_old = c(colnames(p_values_sel), colnames(FCs_sel))
-  final_res = cbind(p_values_sel, FCs_sel, combined_pvalue, average_FC)
-  colnames(final_res) <- c(colnames_old, c("meta_p", "average_FC"))
-  final_res = final_res[with(final_res, order(meta_p, -average_FC)), ]
-  final_res
-}
+  }
 
 average_FC <- function(FC){
   linear_values <- 2^FC
