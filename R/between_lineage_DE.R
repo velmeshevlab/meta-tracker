@@ -22,7 +22,13 @@ calculate_dynamic_FC_gene <- function(gene, cds, lineage){
 }
 
 lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1){
-  lineages = names(cds@lineages)
+    lineages = names(cds@lineages)
+    lineage_genes = get_lineage_genes(cds, test_lineage, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1, lineages = lineages)
+    cds@lineage_genes[[test_lineage]] <- lineage_genes
+    cds
+}
+
+get_lineage_genes <- function(cds, test_lineage, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1, lineages = NULL){
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-7,ncol = 0)
   all_metacells = c()
   lineage_list = list()
@@ -92,8 +98,7 @@ lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, para
   final_res = cbind(p_values_sel, FCs_sel, combined_pvalue, average_FC)
   colnames(final_res) <- c(colnames_old, c("meta_p", "average_FC"))
   final_res = final_res[with(final_res, order(meta_p, -average_FC)), ]
-  cds@lineage_genes[[test_lineage]] <- final_res
-  cds
+  final_res
 }
 
 average_FC <- function(FC){
