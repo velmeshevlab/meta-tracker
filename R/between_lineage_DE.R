@@ -51,6 +51,8 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
     }
   res = cbind(all_Ps, all_FCs)
   rownames(res) <- genes
+  cds@lineage_genes[[name]] <- res
+  cds
 }
 
 get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1, lineages = NULL){
