@@ -84,7 +84,6 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
   combined_pvalue <- apply(all_Ps, 1, get_meta_p)
   average_FC = apply(all_FCs, 1, average_FC)
   res = as.data.frame(cbind(all_Ps, all_FCs, combined_pvalue, average_FC))
-  rownames(res) <- genes
   colnames(res)[(ncol(res)-2):ncol(res)] <- c("meta_p", "average_FC")
   res = res[with(res, order(meta_p, -average_FC)), ]
   cds@lineage_genes[[name]] <- res
