@@ -174,6 +174,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     colnames_old = c(colnames(p_values_sel), colnames(FCs_sel))
     final_res = cbind(p_values_sel, FCs_sel, combined_pvalue, average_FC)
     colnames(final_res) <- c(colnames_old, c("meta_p", "average_FC"))
+    final_res = as.data.frame(final_res)
     final_res = final_res[with(final_res, order(meta_p, -average_FC)), ]
     final_res
   }
@@ -199,6 +200,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     p_values_sel = p_values_sel[names(FCs_sel),]
     final_res = as.data.frame(cbind(p_values_sel, FCs_sel))
     colnames(final_res) <- c("pvalue", "FC")
+    final_res = as.data.frame(final_res)
     final_res = final_res[with(final_res, order(pvalue, -FC)), ]
     final_res
   }
