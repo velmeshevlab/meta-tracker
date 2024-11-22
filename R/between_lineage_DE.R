@@ -77,14 +77,13 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
     }
   rownames(all_FCs) <- genes
   rownames(all_Ps) <- genes
-  all_FCs = all_FCs[rowSums(all_FCs >= FC_cutoff) == ncol(all_FCs), ]
-  all_Ps = all_Ps[all_FCs,]
-  all_Ps = all_Ps[rowSums(all_Ps < p_cutoff) == ncol(all_Ps), ]
-  all_FCs = all_FCs[all_Ps,]
-  combined_pvalue <- apply(all_Ps, 1, get_meta_p)
-  average_FC = apply(all_FCs, 1, average_FC)
-  res = as.data.frame(cbind(all_Ps, all_FCs, combined_pvalue, average_FC))
-  colnames(res)[(ncol(res)-2):ncol(res)] <- c("meta_p", "average_FC")
+  all_FCs_sel = all_FCs[rowSums(all_FCs >= FC_cutoff) == ncol(all_FCs), ]
+  all_Ps_sel = all_Ps[rownames(all_FCs_sel),]
+  all_Ps_sel = all_Ps_sel[rowSums(all_Ps_sel < p_cutoff) == ncol(all_Ps_sel), ]
+  all_FCs_sel = all_FCs_sel[rownames(all_Ps_sel),]
+  meta_p <- apply(all_Ps_sel, 1, get_meta_p)
+  average_FC = apply(all_FCs_sel, 1, get_average_FC)
+  res = as.data.frame(cbind(all_Ps_sel, all_FCs_sel, meta_p, average_FC))
   res = res[with(res, order(meta_p, -average_FC)), ]
   cds@lineage_genes[[name]] <- res
   cds
@@ -171,7 +170,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
       }
     p_values_sel = p_values_sel[rownames(FCs_sel),]
     combined_pvalue <- apply(p_values_sel, 1, get_meta_p)
-    average_FC = apply(FCs_sel, 1, average_FC)
+    average_FC = apply(FCs_sel, 1, get_average_FC)
     colnames_old = c(colnames(p_values_sel), colnames(FCs_sel))
     final_res = cbind(p_values_sel, FCs_sel, combined_pvalue, average_FC)
     colnames(final_res) <- c(colnames_old, c("meta_p", "average_FC"))
@@ -205,7 +204,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
   }
   }
 
-average_FC <- function(FC){
+get_average_FC <- function(FC){
   linear_values <- 2^FC
   mean_linear <- mean(linear_values)
   mean_log2 <- log2(mean_linear)
