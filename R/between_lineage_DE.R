@@ -18,7 +18,7 @@ calculate_dynamic_FC_single_gene <- function(gene, cds, test_lineage, comp_linea
 calculate_dynamic_FC <- function(cds, test_lineage, genes, lineages){
   genes = genes[genes %in% colnames(cds@expectation[[test_lineage]])]
   FC_matrix = sapply(genes, calculate_dynamic_FC_gene, cds = cds, test_lineage = test_lineage, lineages = lineages)
-  rownames(FC_matrix) <- names(cds@lineages)[names(cds@lineages) != lineage]
+  rownames(FC_matrix) <- names(cds@lineages)[names(cds@lineages) != test_lineage]
   FC_matrix
   }
 
