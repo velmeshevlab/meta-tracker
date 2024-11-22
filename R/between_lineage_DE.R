@@ -26,7 +26,7 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
   exp1 = cds@expectation[[test_lineage]]
   pt = c(1:nrow(exp1))
   FCs = c()
-  for(lin in names(lineages)){
+  for(lin in lineages){
     if(lin != test_lineage){
       exp2 = cds@expectation[[lin]]
       auc_dataset1 <- trapz(pt, exp1[,gene])
