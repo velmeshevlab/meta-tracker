@@ -63,8 +63,10 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
     lineage_genes = get_lineage_genes(cds, test_lineage, genes = genes, U = U, nknots = nknots, parallel = parallel, p_cutoff = F, FC_cutoff = F, lineages = c(test_lineage, lineages[!(lineages %in% test_lineages)]))
     if(ncol(lineage_genes) == 2){
       Ps = as.matrix(lineage_genes[,1])
+      rownames(Ps) <- rownames(lineage_genes)
       colnames(Ps) <- paste0("pvalue_",  test_lineage)
       FCs = as.matrix(lineage_genes[,2])
+      rownames(FCs) <- rownames(lineage_genes)
       colnames(FCs) <- paste0("FC_",  test_lineage)
       }
     else{
@@ -75,8 +77,6 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
     all_Ps = cbind(all_Ps, Ps)
     all_FCs = cbind(all_FCs, FCs)
     }
-  rownames(all_FCs) <- genes
-  rownames(all_Ps) <- genes
   all_FCs_sel = all_FCs[rowSums(all_FCs >= FC_cutoff) == ncol(all_FCs), ]
   all_Ps_sel = all_Ps[rownames(all_FCs_sel),]
   all_Ps_sel = all_Ps_sel[rowSums(all_Ps_sel < p_cutoff) == ncol(all_Ps_sel), ]
@@ -175,7 +175,6 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     final_res = cbind(p_values_sel, FCs_sel, combined_pvalue, average_FC)
     colnames(final_res) <- c(colnames_old, c("meta_p", "average_FC"))
     final_res = as.data.frame(final_res)
-    final_res = final_res[with(final_res, order(meta_p, -average_FC)), ]
     final_res
   }
   else{
@@ -201,7 +200,6 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     final_res = as.data.frame(cbind(p_values_sel, FCs_sel))
     colnames(final_res) <- c("pvalue", "FC")
     final_res = as.data.frame(final_res)
-    final_res = final_res[with(final_res, order(pvalue, -FC)), ]
     final_res
   }
   }
