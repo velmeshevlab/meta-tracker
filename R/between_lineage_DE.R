@@ -45,7 +45,7 @@ lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, para
     cds
 }
 
-branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F){
+branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1){
   lineages = names(cds@lineages)
   genes = c()
   for(test_lineage in test_lineages){
@@ -68,18 +68,25 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
       colnames(FCs) <- paste0("FC_",  test_lineage)
       }
     else{
-      lineage_genes = lineage_genes[,1:(ncol(lineage_genes)-1)]
+      lineage_genes = lineage_genes[,1:(ncol(lineage_genes)-2)]
       Ps = lineage_genes[,1:(ncol(lineage_genes)/2)]
       FCs = lineage_genes[,((ncol(lineage_genes)/2)+1):ncol(lineage_genes)]
       }
     all_Ps = cbind(all_Ps, Ps)
     all_FCs = cbind(all_FCs, FCs)
     }
+  rownames(all_FCs) <- genes
+  rownames(all_Ps) <- genes
+  all_FCs = all_FCs[rowSums(all_FCs >= FC_cutoff) == ncol(all_FCs), ]
+  all_Ps = all_Ps[all_FCs,]
+  all_Ps = all_Ps[rowSums(all_Ps < p_cutoff) == ncol(all_Ps), ]
+  all_FCs = all_FCs[all_Ps,]
   combined_pvalue <- apply(all_Ps, 1, get_meta_p)
   average_FC = apply(all_FCs, 1, average_FC)
-  res = cbind(all_Ps, all_FCs, combined_pvalue, average_FC)
+  res = as.data.frame(cbind(all_Ps, all_FCs, combined_pvalue, average_FC))
   rownames(res) <- genes
   colnames(res)[(ncol(res)-2):ncol(res)] <- c("meta_p", "average_FC")
+  res = res[with(res, order(meta_p, -average_FC)), ]
   cds@lineage_genes[[name]] <- res
   cds
 }
