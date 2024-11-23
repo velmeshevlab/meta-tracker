@@ -1,5 +1,5 @@
 # Function to classify expression pattern with tunable parameters
-classify_expression <- function(pseudotime, expression, threshold = 0.1, min_duration = 0.1, transient_threshold = 0.3) {
+classify_expression <- function(pseudotime, expression, threshold = 0.2, min_duration = 0.1, transient_threshold = 0.3) {
   # Fit a smoothing spline to the data
   spline <- smooth.spline(pseudotime, expression, spar = 1)
   
@@ -13,6 +13,15 @@ classify_expression <- function(pseudotime, expression, threshold = 0.1, min_dur
   # Determine the pattern based on the derivative and thresholds
   sustained_increase <- sum(first_derivative > threshold) >= min_duration_points
   sustained_decrease <- sum(first_derivative < -threshold) >= min_duration_points
+  
+  # Check for plateauing: if the change after the local max is below the threshold
+  local_max_idx <- which.max(expression)
+  if (local_max_idx > 1 && local_max_idx < length(expression)) {
+    after_max_change <- abs(expression[length(expression)] - expression[local_max_idx])
+    if (after_max_change < threshold * max(expression)) {
+      return("Plateauing")
+    }
+  }
   
   # Check if the gene is gradually increasing
   if (sustained_increase) {
@@ -49,11 +58,6 @@ classify_expression <- function(pseudotime, expression, threshold = 0.1, min_dur
   end_expression <- expression[length(expression)]
   if ((end_expression - start_expression) > threshold * max(expression)) {
     return("Increasing")
-  }
-  
-  # Check for plateauing
-  if (all(abs(first_derivative) < threshold) && !sustained_increase && !sustained_decrease) {
-    return("Plateauing")
   }
   
   return("Unclassified")
