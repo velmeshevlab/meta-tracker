@@ -52,10 +52,19 @@ classify_expression <- function(pseudotime, expression, threshold = 0.2, min_dur
     return("Increasing")
   }
   
-  # Check if the gene is gradually increasing
+  # Check if the gene is gradually increasing before reaching a plateau
   if (sustained_increase) {
     return("Increasing")
   } else if (sustained_decrease) {
+    return("Decreasing")
+  }
+  
+  # Check if the difference between starting and end points is above the threshold
+  start_expression <- expression[1]
+  end_expression <- expression[length(expression)]
+  if ((end_expression - start_expression) > threshold * max(expression)) {
+    return("Increasing")
+  } else if ((start_expression - end_expression) > threshold * max(expression)) {
     return("Decreasing")
   }
   
