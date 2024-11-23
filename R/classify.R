@@ -49,12 +49,12 @@ classify_expression <- function(pseudotime, expression, threshold = 0.2, min_dur
   
   # Check if the gene is gradually increasing without local min/max
   if (length(peaks) == 0 && (expression[length(expression)] - expression[1]) > threshold * max(expression)) {
-    return("Constantly increasing")
+    return("Increasing")
   }
   
   # Check if the gene is gradually decreasing without local min/max
   if (length(peaks) == 0 && (expression[length(expression)] - expression[1]) < -threshold * max(expression)) {
-    return("Constantly decreasing")
+    return("Decreasing")
   }
   
   # Check if the gene is gradually increasing before reaching a plateau
