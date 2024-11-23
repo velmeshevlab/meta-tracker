@@ -14,9 +14,10 @@ classify_expression <- function(pseudotime, expression, threshold = 0.1, min_dur
   sustained_increase <- sum(first_derivative > threshold) >= min_duration_points
   sustained_decrease <- sum(first_derivative < -threshold) >= min_duration_points
   
-  if (sustained_increase && !sustained_decrease) {
+  # Check if the gene is gradually increasing
+  if (sustained_increase) {
     return("Increasing")
-  } else if (sustained_decrease && !sustained_increase) {
+  } else if (sustained_decrease) {
     return("Decreasing")
   } else {
     # Check for multiple peaks (transient pattern)
@@ -43,8 +44,15 @@ classify_expression <- function(pseudotime, expression, threshold = 0.1, min_dur
     }
   }
   
+  # Check for gradual increase without local min/max by comparing start and end
+  start_expression <- expression[1]
+  end_expression <- expression[length(expression)]
+  if ((end_expression - start_expression) > threshold * max(expression)) {
+    return("Increasing")
+  }
+  
   # Check for plateauing
-  if (all(abs(first_derivative) < threshold)) {
+  if (all(abs(first_derivative) < threshold) && !sustained_increase && !sustained_decrease) {
     return("Plateauing")
   }
   
