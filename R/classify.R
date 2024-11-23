@@ -47,6 +47,11 @@ classify_expression <- function(pseudotime, expression, threshold = 0.2, min_dur
   sustained_increase <- sum(first_derivative > threshold) >= min_duration_points
   sustained_decrease <- sum(first_derivative < -threshold) >= min_duration_points
   
+  # Check if the gene is gradually increasing without local min/max
+  if (length(peaks) == 0 && (expression[length(expression)] - expression[1]) > threshold * max(expression)) {
+    return("Increasing")
+  }
+  
   # Check if the gene is gradually increasing
   if (sustained_increase) {
     return("Increasing")
