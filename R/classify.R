@@ -1,5 +1,5 @@
 # Function to classify expression pattern with tunable parameters
-classify_expression <- function(pseudotime, expression, threshold = 0.2, min_duration = 0.2, transient_threshold = 0.3, plateau_fraction = 0.2) {
+classify_expression <- function(pseudotime, expression, threshold = 0.2, min_duration = 0.2, transient_threshold = 0.3, plateau_fraction = 0.1) {
   # Fit a smoothing spline to the data
   spline <- smooth.spline(pseudotime, expression, spar = 1)
   
