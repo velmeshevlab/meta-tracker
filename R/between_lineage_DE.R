@@ -164,12 +164,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     FCs = calculate_dynamic_FC(cds, test_lineage, gene_names, lineages)
     FCs = t(FCs)
     if(FC_cutoff != F){
-      if(FC_cutoff > 0){
-        FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs), ]
-        }
-      else{
-        FCs_sel = FCs[rowSums(FCs <= FC_cutoff) == ncol(FCs), ]
-        }
+        FCs_sel = FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs) | rowSums(FCs <= -FC_cutoff) == ncol(FCs), ]
       }
     else{
       FCs_sel = FCs
@@ -196,12 +191,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     gene_names = rownames(p_values_sel)
     FCs = calculate_dynamic_FC_single(cds, test_lineage, gene_names, lineages[lineages != test_lineage])
     if(FC_cutoff != F){
-      if(FC_cutoff > 0){
-        FCs_sel = FCs[FCs >= FC_cutoff]
-        }
-      else{
-        FCs_sel = FCs[FCs <= FC_cutoff]
-        }
+        FCs_sel = FCs[FCs >= FC_cutoff | FCs <= -FC_cutoff]
       }
     else
       {
