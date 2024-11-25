@@ -1,6 +1,3 @@
-#Load dependent packages
-library(tradeSeq)
-
 within_lineage_DE <- function(cds, #metatracker object
                           lineage, #name of the lineage to analyze
                           conditions = NULL, #a vector of condition information
