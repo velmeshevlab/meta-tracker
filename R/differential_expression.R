@@ -8,7 +8,6 @@ within_lineage_DE <- function(cds, #metatracker object
                           pairwise=TRUE, #pairwise comparison between different conditions
                           contrast_type = "end",
                           p = 0.05, #p value threshold
-                          FC = 1, #fold change value threshold
                           parallel = F
                           ){
   d =cds@expression[[lineage]]
@@ -29,7 +28,6 @@ within_lineage_DE <- function(cds, #metatracker object
   gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt, parallel = parallel)
   res = associationTest(gamList, contrastType = contrast_type)
   res_sig = res[res$pvalue<p,]
-  res_sig = res[abs(res$meanLogFC)>=FC,]
   res_sig = res_sig[with(res_sig, order(pvalue, -meanLogFC)), ]
   cds@dynamic_genes[[lineage]] <- res_sig
   return(cds)
