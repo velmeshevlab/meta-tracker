@@ -24,15 +24,17 @@ within_lineage_DE <- function(cds, #metatracker object
   #final_res= final_res[order(final_res[,1], decreasing = T),]
   gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt, parallel = parallel)
   res = associationTest(gamList, contrastType = contrast_type)
-  exp_95 = matrix(,nrow = nrow(res_sig),ncol = 0)
+  exp_95 = matrix(,nrow = nrow(res),ncol = 0)
   for(lin in names(cds@lineages)){
     exp_lin = cds@expectation[[lin]]
+    exp_lin = exp_lin[,rownames(res)]
     exp_95_lin = apply(exp_lin, 2, function(x) as.numeric(quantile(x, 0.95)))
     exp_95 = cbind(exp_95, exp_95_lin)
     }
+  rownames(exp_95) <- rownames(res)
   exp_95_max = rowMax(exp_95)
-  names(exp_95_max) <- rownames(exp_95)
-  scaled_FC = res$meanLogFC/exp_95_max
+  FC_factor = apply(cds@expectation[[lineage]], 2, function(x) as.numeric(quantile(x, 0.95)))/exp_95_max
+  scaled_FC = res$meanLogFC/FC_factor
   res$scaled_FC <- scaled_FC                      
   res_sig = res[res$pvalue<p,]
   res_sig = res_sig[with(res_sig, order(pvalue, -meanLogFC)), ]
