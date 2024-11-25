@@ -171,7 +171,7 @@ compress_expression_v3 <- function(cds, lineage, N, cores = 1){
   exp_data <- as.data.frame(exp_data)
   exp_data$pt.comp <- as.numeric(exp_data$pt.comp)
   exp_data_ordered <- exp_data[order(exp_data$pt.comp), ]
-  mat <- exp_data_ordered[,9:(ncol(exp_data_ordered))]
+  mat <- exp_data_ordered[,8:(ncol(exp_data_ordered))]
   d = as.data.frame(seq(from=0, to=max.pt, by = max.pt/(N-1)))
   print("Fitting curves")
   fit = pbsapply(mat, fit.m3_3, pt = d, max.pt = max(d), N = N, cl = cores)
