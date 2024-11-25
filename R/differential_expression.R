@@ -32,7 +32,7 @@ within_lineage_DE <- function(cds, #metatracker object
     }
   exp_95_max = rowMax(exp_95)
   names(exp_95_max) <- rownames(exp_95)
-  scaled_FC = res_sig$meanLogFC/exp_95
+  scaled_FC = res_sig$meanLogFC/exp_95_max
   res_sig$scaled_FC <- scaled_FC                      
   res_sig = res[res$pvalue<p,]
   res_sig = res_sig[with(res_sig, order(pvalue, -meanLogFC)), ]
