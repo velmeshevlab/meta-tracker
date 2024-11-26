@@ -8,6 +8,7 @@ within_lineage_DE <- function(cds, #metatracker object
                           pairwise=TRUE, #pairwise comparison between different conditions
                           contrast_type = "end",
                           p = 0.05, #p value threshold
+                          FC = 0.5, #fold change value threshold
                           parallel = F
                           ){
   d =cds@expression[[lineage]]
@@ -39,8 +40,8 @@ within_lineage_DE <- function(cds, #metatracker object
   FC_factor = apply(cds@expectation[[lineage]], 2, function(x) as.numeric(quantile(x, 0.95)))/exp_95_max
   scaled_FC = res$meanLogFC*FC_factor
   res$scaled_FC <- scaled_FC                      
-  res_sig = res[res$pvalue<p,]
-  res_sig = res_sig[with(res_sig, order(pvalue, -meanLogFC)), ]
+  res_sig = res[res$pvalue<p & res$scaled_FC >= FC,]
+  res_sig = res_sig[with(res_sig, order(pvalue, -scaled_FC)), ]
   cds@dynamic_genes[[lineage]] <- res_sig
   return(cds)
 }
