@@ -34,7 +34,7 @@ within_lineage_DE <- function(cds, #metatracker object
   rownames(exp_95) <- rownames(res)
   exp_95_max = rowMax(exp_95)
   FC_factor = apply(cds@expectation[[lineage]], 2, function(x) as.numeric(quantile(x, 0.95)))/exp_95_max
-  scaled_FC = res$meanLogFC/FC_factor
+  scaled_FC = res$meanLogFC*FC_factor
   res$scaled_FC <- scaled_FC                      
   res_sig = res[res$pvalue<p,]
   res_sig = res_sig[with(res_sig, order(pvalue, -meanLogFC)), ]
