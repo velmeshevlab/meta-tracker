@@ -78,7 +78,7 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
     all_Ps = cbind(all_Ps, Ps)
     all_FCs = cbind(all_FCs, FCs)
     }
-  all_FCs_sel = all_FCs[rowSums(all_FCs >= FC_cutoff) == ncol(all_FCs), ]
+  all_FCs_sel = all_FCs[rowSums(FCs >= FC_cutoff) == ncol(FCs) | rowSums(FCs <= -FC_cutoff) == ncol(FCs), ]
   all_Ps_sel = all_Ps[rownames(all_FCs_sel),]
   all_Ps_sel = all_Ps_sel[rowSums(all_Ps_sel < p_cutoff) == ncol(all_Ps_sel), ]
   all_FCs_sel = all_FCs_sel[rownames(all_Ps_sel),]
