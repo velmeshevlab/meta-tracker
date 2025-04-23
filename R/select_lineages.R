@@ -350,3 +350,45 @@ as_matrix <- function(mat){
   colnames(tmp) <- mat@Dimnames[[2]]
   return(tmp)
 }
+
+#' @export
+#generate node plot
+add_node <- function(cds, N = 10, subset = TRUE, node1) {
+  Y <- cds@principal_graph_aux[["UMAP"]]$dp_mst
+  rownames(Y) <- c("UMAP_1", "UMAP_2")
+  X <- reducedDims(cds)[["UMAP"]]
+  if(subset == T){
+    X = X[sample(rownames(X), round(nrow(X)/N)),]
+  }
+  ui <- fluidPage(
+    plotlyOutput("scatter"),
+    verbatimTextOutput("coords")
+  )
+  server <- function(input, output, session) {
+    
+    output$scatter <- renderPlotly({
+      ggplotly(
+        ggplot(data=X, aes(x=umap_1, y=umap_2), aes_string(umap_1, umap_2, key = seq_len(nrow(X)))) + geom_point(size=1) + monocle_theme_opts(),
+        source = "scatter"
+      )
+    })
+    observeEvent(event_data("plotly_click", source = "scatter"), {
+      click <- event_data("plotly_click", source = "scatter")
+      # return whichever columns you like:
+      stopApp(list(x = click$x,
+                   y = click$y
+                   ))
+    }, ignoreInit = TRUE)
+  }
+  coords = runApp(shinyApp(ui, server))
+  graph.old = cds@principal_graph[["UMAP"]]
+  new_name = paste0("Y_", as.character(length(names(V(graph.old)))+1))
+  node_coords = as.data.frame(c(coords$x, coords$y))
+  colnames(node_coords) = new_name
+  rownames(node_coords) = c("umap_1", "umap_2")
+  cds@principal_graph_aux[["UMAP"]]$dp_mst <- cbind(cds@principal_graph_aux[["UMAP"]]$dp_mst, node_coords)
+  graph.new <- add_vertices(graph.old, 1,attr = list(name = new_name))
+  graph.new <- add_edges(graph.new, c(node1, new_name))
+  cds@principal_graph[["UMAP"]] <- graph.new
+  return(cds)
+}
