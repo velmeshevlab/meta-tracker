@@ -352,10 +352,17 @@ as_matrix <- function(mat){
 }
 
 #' @export
-#generate node plot
+#add a new node
 add_node <- function(cds, N = 10, subset = TRUE, node1) {
-  Y <- cds@principal_graph_aux[["UMAP"]]$dp_mst
-  rownames(Y) <- c("UMAP_1", "UMAP_2")
+  nodes_df <-t(cds@principal_graph_aux[["UMAP"]]$dp_mst)
+  nodes_df = as.data.frame(nodes_df)
+  nodes_df <- nodes_df %>% mutate(name = rownames(.))
+  g = cds@principal_graph[["UMAP"]]
+  edges_df <- get.data.frame(g, what = "edges") %>%
+    left_join(nodes_df, by = c("from" = "name")) %>%
+    rename(x_start = umap_1, y_start = umap_2) %>%
+    left_join(nodes_df, by = c("to" = "name")) %>%
+    rename(x_end = umap_1, y_end = umap_2)
   X <- reducedDims(cds)[["UMAP"]]
   if(subset == T){
     X = X[sample(rownames(X), round(nrow(X)/N)),]
@@ -368,7 +375,7 @@ add_node <- function(cds, N = 10, subset = TRUE, node1) {
     
     output$scatter <- renderPlotly({
       ggplotly(
-        ggplot(data=X, aes(x=umap_1, y=umap_2), aes_string(umap_1, umap_2, key = seq_len(nrow(X)))) + geom_point(size=1) + monocle_theme_opts(),
+        ggplot(data=X, aes(x=umap_1, y=umap_2), aes_string(umap_1, umap_2, key = seq_len(nrow(X)))) + geom_point(size=0.5) + geom_segment(data = edges_df,aes(x = x_start, y = y_start, xend = x_end, yend = y_end), color = "cyan") + monocle_theme_opts(),
         source = "scatter"
       )
     })
@@ -392,3 +399,4 @@ add_node <- function(cds, N = 10, subset = TRUE, node1) {
   cds@principal_graph[["UMAP"]] <- graph.new
   return(cds)
 }
+
