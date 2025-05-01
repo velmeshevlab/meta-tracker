@@ -59,19 +59,19 @@ colnames(el) <- c("from", "to")
 # 3) Join coordinates
 edges <- el %>%
   left_join(nodes,    by = c("from" = "node")) %>%
-  rename(x   = x, y   = y) %>%
+  rename(x   = UMAP_1, y   = UMAP_2) %>%
   left_join(nodes,    by = c("to"   = "node")) %>%
   rename(xend = x.y, yend = y.y) %>%
-  select(from, to, x, y, xend, yend)
+  select(from, to, UMAP_1, UMAP_2, xend, yend)
 p <- ggplot() +
   geom_segment(
     data = edges,
-    aes(x = x, y = y, xend = xend, yend = yend),
+    aes(x = UMAP_1, y = UMAP_2, xend = xend, yend = yend),
     size = 0.3, alpha = 0.5
   ) +
   geom_point(
     data = nodes,
-    aes(x = x, y = y),
+    aes(x = UMAP_1, y = UMAP_2),
     size = point_size
   ) +
   monocle_theme_opts()
