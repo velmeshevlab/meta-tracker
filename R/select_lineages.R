@@ -45,12 +45,12 @@ return(cds)
 
 #' @export
 #generate node plot
-node_plot <- function(cds, point_size = 1, reduction_method = "UMAP"){
+node_plot <- function(cds, point_size = 1, reduction_method = "UMAP", segment_size = 1){
 # 1) Nodes data frame
 g = cds@principal_graph[[reduction_method]]
 Y <- cds@principal_graph_aux[[reduction_method]]$dp_mst
 nodes = as.data.frame(t(Y))
-colnames(nodes) <- c("UMAP_1", "UMAP_2")
+colnames(nodes) <- c("x", "y")
 nodes$node <- rownames(nodes)
 # 2) Edges data frame
 #   get.edgelist(g) returns a two‐column matrix of from/to vertex names (or indices)
@@ -58,20 +58,28 @@ el <- as.data.frame(get.edgelist(g), stringsAsFactors = FALSE)
 colnames(el) <- c("from", "to")
 # 3) Join coordinates
 edges <- el %>%
-  left_join(nodes,    by = c("from" = "node")) %>%
-  rename(x   = UMAP_1, y   = UMAP_2) %>%
-  left_join(nodes,    by = c("to"   = "node")) %>%
-  rename(xend = x.y, yend = y.y) %>%
-  select(from, to, UMAP_1, UMAP_2, xend, yend)
+  # join on ‘from’, grabs x,y
+  left_join(nodes, by = c("from" = "node")) %>%
+  # join on ‘to’, any overlapping names (x,y) get the “.to” suffix
+  left_join(nodes, by = c("to"   = "node"), suffix = c("", ".to")) %>%
+  # rename the .to columns into xend/yend
+  rename(
+    xend = x.to,
+    yend = y.to
+  ) %>%
+  # now we have ‘from’, ‘to’, x, y, xend, yend
+  select(from, to, x, y, xend, yend)
+# 4) Plot
 p <- ggplot() +
   geom_segment(
     data = edges,
-    aes(x = UMAP_1, y = UMAP_2, xend = xend, yend = yend),
-    size = 0.3, alpha = 0.5
+    aes(x = x, y = y, xend = xend, yend = yend),
+    size = segment_size, alpha = 0.5,
+    colour = "cyan"
   ) +
   geom_point(
     data = nodes,
-    aes(x = UMAP_1, y = UMAP_2),
+    aes(x = x, y = y),
     size = point_size
   ) +
   monocle_theme_opts()
