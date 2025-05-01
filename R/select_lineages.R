@@ -46,10 +46,33 @@ return(cds)
 #' @export
 #generate node plot
 node_plot <- function(cds, filter = T, N = 2, label_size = 3, point_size = 1){
+# 1) Nodes data frame
 Y <- cds@principal_graph_aux[["UMAP"]]$dp_mst
-rownames(Y) <- c("UMAP_1", "UMAP_2")
-d = as.data.frame(t(Y))
-p <- ggplot(data=d, aes(x=UMAP_1, y=UMAP_2)) + geom_point(size=point_size, aes(text=rownames(d))) + monocle_theme_opts()
+nodes = as.data.frame(t(Y))
+colnames(nodes) <- c("UMAP_1", "UMAP_2")
+nodes$node <- rownames(nodes)
+# 2) Edges data frame
+#   get.edgelist(g) returns a two‐column matrix of from/to vertex names (or indices)
+el <- as.data.frame(get.edgelist(g), stringsAsFactors = FALSE)
+colnames(el) <- c("from", "to")
+# 3) Join coordinates
+edges <- el %>%
+  left_join(nodes,    by = c("from" = "node")) %>%
+  rename(x   = x, y   = y) %>%
+  left_join(nodes,    by = c("to"   = "node")) %>%
+  rename(xend = x.y, yend = y.y) %>%
+  select(from, to, x, y, xend, yend)
+p <- ggplot() +
+  geom_segment(
+    data = edges,
+    aes(x = x, y = y, xend = xend, yend = yend),
+    size = 0.3, alpha = 0.5
+  ) +
+  geom_point(
+    data = nodes,
+    aes(x = x, y = y),
+    size = 2
+  ) + monocle_theme_opts()
 ggplotly(p)
 }
 
