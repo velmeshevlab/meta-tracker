@@ -45,9 +45,10 @@ return(cds)
 
 #' @export
 #generate node plot
-node_plot <- function(cds, filter = T, N = 2, label_size = 3, point_size = 1){
+node_plot <- function(cds, point_size = 1, reduction_method = "UMAP"){
 # 1) Nodes data frame
-Y <- cds@principal_graph_aux[["UMAP"]]$dp_mst
+g = cds@principal_graph[[reduction_method]]
+Y <- cds@principal_graph_aux[[reduction_method]]$dp_mst
 nodes = as.data.frame(t(Y))
 colnames(nodes) <- c("UMAP_1", "UMAP_2")
 nodes$node <- rownames(nodes)
@@ -71,8 +72,9 @@ p <- ggplot() +
   geom_point(
     data = nodes,
     aes(x = x, y = y),
-    size = 2
-  ) + monocle_theme_opts()
+    size = point_size
+  ) +
+  monocle_theme_opts()
 ggplotly(p)
 }
 
