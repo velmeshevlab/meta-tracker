@@ -87,36 +87,42 @@ ggplotly(p)
 }
 
 #' @export
-isolate_graph_interactive <- function(cds, lineage,
+# Depends on: shiny, igraph, dplyr, ggplot2, plotly, colorspace, SingleCellExperiment, Matrix
+graph_selection_interactive <- function(cds,
+                                        lineage,
                                         point_size       = 0.5,
                                         node_size        = 1,
                                         reduction_method = "UMAP",
                                         segment_size     = 1,
-                                        N                 = 50){
-#get lineage graph
-# Extract graph and coordinates
+                                        N                 = 10) {
+  # Extract principal graph and node coordinates
   g <- cds@principal_graph[[reduction_method]]
   Y <- cds@principal_graph_aux[[reduction_method]]$dp_mst
   nodes <- as.data.frame(t(Y), stringsAsFactors = FALSE)
   colnames(nodes) <- c("x", "y")
   nodes$node <- rownames(nodes)
   
-  # Cell coordinates and metadata
+  # Cell embedding coordinates
   cell_coords <- as.data.frame(reducedDims(cds)[[reduction_method]], stringsAsFactors = FALSE)
   colnames(cell_coords) <- c("x", "y")
   cell_coords$cell_id <- rownames(cell_coords)
   metadata <- as.data.frame(colData(cds), stringsAsFactors = FALSE)
   
   # Sample cells
+  set.seed(42)
   total_cells <- nrow(cell_coords)
   sample_size <- ceiling(total_cells / N)
-  set.seed(42)
-  sampled_cells <- cell_coords %>% slice(sample(seq_len(total_cells), sample_size))
+  sampled_cells <- cell_coords %>%
+    slice(sample(seq_len(total_cells), sample_size))
   
-  # Precompute edges
+  # Precompute normalized expression for sampled cells
+  cds_exprs_all <- counts(cds)[ , sampled_cells$cell_id, drop = FALSE]
+  cds_exprs_all <- t(t(cds_exprs_all) / size_factors(cds)[sampled_cells$cell_id])
+  
+  # Build edges data frame
   el <- as.data.frame(get.edgelist(g), stringsAsFactors = FALSE)
   colnames(el) <- c("from", "to")
-  coords <- nodes[, c("node", "x", "y")]
+  coords <- nodes[, c("node","x","y")]
   edges <- data.frame(
     from = el$from,
     to   = el$to,
@@ -127,37 +133,56 @@ isolate_graph_interactive <- function(cds, lineage,
     stringsAsFactors = FALSE
   )
   
-  # Recalc helper
+  # Helper: recompute selected path edges
   recalc <- function(clicks) {
     selected <- unique(clicks)
     highlight <- edges[0, , drop = FALSE]
     if (length(clicks) >= 2) {
-      for (i in seq_len(length(clicks) - 1)) {
-        path <- shortest_paths(g,
-                               from    = clicks[i],
-                               to      = clicks[i + 1],
-                               weights = NA,
-                               output  = "vpath")$vpath[[1]]
-        nodes_in_path <- names(path)
-        selected <- unique(c(selected, nodes_in_path))
-        pairs <- tibble(from = head(nodes_in_path, -1), to = tail(nodes_in_path, -1))
-        segs <- edges %>% semi_join(pairs, by = c("from", "to"))
-        revs <- edges %>% semi_join(pairs, by = c("from" = "to", "to" = "from"))
+      for (i in seq_len(length(clicks)-1)) {
+        pth <- shortest_paths(
+          g,
+          from    = clicks[i],
+          to      = clicks[i+1],
+          weights = NA,
+          output  = "vpath"
+        )$vpath[[1]]
+        seq_nodes <- names(pth)
+        selected <- unique(c(selected, seq_nodes))
+        pairs <- tibble(
+          from = head(seq_nodes, -1),
+          to   = tail(seq_nodes, -1)
+        )
+        segs <- edges %>% semi_join(pairs, by = c("from","to"))
+        revs <- edges %>% semi_join(pairs, by = c("from"="to","to"="from"))
         highlight <- distinct(bind_rows(highlight, segs, revs))
       }
     }
     list(all_selected = selected, highlight_edges = highlight)
   }
   
-  # Shiny app
+  # Define Shiny app UI
   app <- shinyApp(
     ui = fluidPage(
       titlePanel("Interactive Graph Path Selector"),
       sidebarLayout(
         sidebarPanel(
-          selectInput("color_by", "Color cells by:",
-                      choices = colnames(metadata),
-                      selected = colnames(metadata)[1]),
+          selectizeInput(
+            inputId = "gene",
+            label   = "Search gene:",
+            choices = c("", rownames(counts(cds))),
+            selected = character(0),
+            multiple = FALSE,
+            options = list(
+              placeholder = 'Type a gene...',
+              server = TRUE
+            )
+          ),
+          selectInput(
+            inputId = "color_by",
+            label   = "Color cells by:",
+            choices = colnames(metadata),
+            selected = colnames(metadata)[1]
+          ),
           actionButton("undo", "Undo Last Selection"),
           actionButton("done", "Finish & Return Selection"),
           br(), br(),
@@ -165,102 +190,136 @@ isolate_graph_interactive <- function(cds, lineage,
         ),
         mainPanel(
           plotlyOutput("plot", height = "600px"),
-          uiOutput("hover_info", style = paste(
-            "position:absolute; pointer-events:none;",
-            "background: rgba(255,255,255,0.8); padding:4px;",
-            "border:1px solid #ccc; border-radius:4px;"
-          ))
+          uiOutput(
+            "hover_info",
+            style = paste(
+              "position:absolute; pointer-events:none;",
+              "background: rgba(255,255,255,0.8); padding:4px;",
+              "border:1px solid #ccc; border-radius:4px;"
+            )
+          )
         )
       )
     ),
     server = function(input, output, session) {
       rv <- reactiveValues(
-        clicked = character(),
-        all_selected = character(),
+        clicked         = character(),
+        all_selected    = character(),
         highlight_edges = edges[0, , drop = FALSE]
       )
+      # Clear gene selection when metadata changes
+      observeEvent(input$color_by, {
+        updateSelectizeInput(session, "gene", selected = character(0))
+      })
       
-      # Hover popup
+      # Hover info
       output$hover_info <- renderUI({
-        hover <- event_data("plotly_hover", source = "graph")
-        if (is.null(hover)) return(NULL)
-        div(style = sprintf("position:absolute; left:%dpx; top:%dpx;",
-                            hover$clientX + 10,
-                            hover$clientY + 10),
-            strong(hover$key))
+        hov <- event_data("plotly_hover", source = "graph")
+        if (is.null(hov)) return(NULL)
+        key <- hov$key
+        label <- if (key %in% nodes$node) key else metadata[key, input$color_by]
+        div(
+          style = sprintf("position:absolute; left:%dpx; top:%dpx;", hov$clientX+10, hov$clientY+10),
+          strong(label)
+        )
       })
       
-      # Click handling
+      # Node click handling
       observeEvent(event_data("plotly_click", source = "graph"), {
-        click <- event_data("plotly_click", source = "graph")
-        if (is.null(click$key)) return()
-        rv$clicked <- c(rv$clicked, click$key)
-        rec <- recalc(rv$clicked)
-        rv$all_selected <- rec$all_selected
-        rv$highlight_edges <- rec$highlight_edges
-      })
-      
-      observeEvent(input$undo, {
-        if (length(rv$clicked) > 0) {
-          rv$clicked <- head(rv$clicked, -1)
+        clk <- event_data("plotly_click", source = "graph")
+        key <- clk$key
+        if (!is.null(key) && key %in% nodes$node) {
+          rv$clicked <- c(rv$clicked, key)
           rec <- recalc(rv$clicked)
-          rv$all_selected <- rec$all_selected
+          rv$all_selected    <- rec$all_selected
           rv$highlight_edges <- rec$highlight_edges
         }
       })
       
-      # Plot
+      # Undo last selection
+      observeEvent(input$undo, {
+        if (length(rv$clicked) > 0) {
+          rv$clicked <- head(rv$clicked, -1)
+          rec <- recalc(rv$clicked)
+          rv$highlight_edges <- rec$highlight_edges
+        }
+      })
+      
+      # Plot rendering with conditional coloring
       output$plot <- renderPlotly({
         sampled <- sampled_cells
-        sampled$meta_value <- metadata[sampled$cell_id, input$color_by]
-        vals <- unique(sampled$meta_value)
-        palette <- colorspace::qualitative_hcl(length(vals), palette = "Dark 3")
-        names(palette) <- vals
-        
-        nodes_base <- nodes
-        nodes_sel <- subset(nodes_base, node %in% rv$all_selected)
-        
-        p <- ggplot() +
-          geom_point(data = sampled,
-                     aes(x = x, y = y, color = meta_value),
-                     size = point_size, alpha = 0.6) +
-          scale_color_manual(values = palette, na.value = "grey50") +
-          geom_segment(data = edges,
-                       aes(x = x, y = y, xend = xend, yend = yend),
-                       size = segment_size, alpha = 0.3, color = "grey70") +
+        if (nzchar(input$gene)) {
+          expr_vals <- cds_exprs_all[input$gene, sampled$cell_id]
+          sampled$expr_value <- expr_vals
+          p <- ggplot() +
+            geom_point(
+              data = sampled,
+              aes(x = x, y = y, key = cell_id,
+                  text = sprintf("%s: %.3f", input$gene, expr_value),
+                  color = expr_value),
+              size  = point_size, alpha = 0.6
+            ) +
+            scale_colour_gradient(low = "grey75", high = "red",
+                                  name = input$gene, limits = c(0, as.numeric(quantile(expr_vals, 0.99))))
+        } else {
+          sampled <- sampled_cells %>%
+            mutate(meta_value = metadata[cell_id, input$color_by])
+          vals <- unique(sampled$meta_value)
+          pal <- qualitative_hcl(length(vals), palette = "Dark 3")
+          names(pal) <- vals
+          p <- ggplot() +
+            geom_point(
+              data = sampled,
+              aes(x = x, y = y, key = cell_id,
+                  text = meta_value, color = meta_value),
+              size = point_size, alpha = 0.6
+            ) +
+            scale_color_manual(values = pal, na.value = "grey50",
+                               name = input$color_by)
+        }
+        p <- p +
+          geom_segment(
+            data = edges,
+            aes(x = x, y = y, xend = xend, yend = yend),
+            size = segment_size, alpha = 0.3, color = "grey70"
+          ) +
           {if (nrow(rv$highlight_edges) > 0) geom_segment(
             data = rv$highlight_edges,
             aes(x = x, y = y, xend = xend, yend = yend),
             size = segment_size, color = "red"
           )} +
-          geom_point(data = nodes_base,
-                     aes(x = x, y = y),
-                     size = node_size, color = "black") +
-          geom_point(data = nodes_sel,
-                     aes(x = x, y = y),
-                     size = node_size * 1.5, color = "orange") +
-          theme_minimal() +
-          labs(color = input$color_by)
+          geom_point(
+            data = nodes,
+            aes(x = x, y = y, key = node, text = node),
+            size = node_size, color = "black"
+          ) +
+          geom_point(
+            data = subset(nodes, node %in% rv$clicked),
+            aes(x = x, y = y, key = node, text = node),
+            size = node_size*1.5, color = "orange"
+          ) +
+          theme_minimal()
         
-        ggplotly(p, tooltip = "color", source = "graph") %>%
-          layout(dragmode = "select")
+        ggplotly(p, tooltip = "text", source = "graph") %>% layout(dragmode = "select")
       })
       
-      # Selection display
+      # Selected nodes print
       output$sel_nodes <- renderPrint({
-        if (length(rv$all_selected) == 0) "No paths selected yet." else rv$all_selected
+        if (length(rv$clicked) == 0) "No selections." else rv$all_selected
       })
       
+      # Finish selection
       observeEvent(input$done, stopApp(list(selected_nodes = rv$all_selected)))
     }
   )
   
-  # Run app and return result
-  sub.graph <- runApp(app)
-  cds@graphs[[lineage]] <- make_graph(sub.graph)
+  # Run and return updated CDS with subgraph
+  result <- runApp(app)
+  sel <- result$selected_nodes
+  subg <- induced_subgraph(g, vids = V(g)[name %in% sel])
+  cds@graphs[[lineage]] <- subg
   return(cds)
 }
-
 
 #' @export
 isolate_graph <- function(cds, start, end, lineage, include_nodes = NULL){
