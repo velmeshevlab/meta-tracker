@@ -99,7 +99,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
   for(lineage in lineages){
     metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]])))
     d = cds@expression[[lineage]]
-    d = t(as.matrix(sapply(d[,8:ncol(d)], as.numeric)))
+    d = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric)))
     colnames(d) <- metacells
     counts <- cbind(counts, d)
     all_metacells <- c(all_metacells, metacells)
