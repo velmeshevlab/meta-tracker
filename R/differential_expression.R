@@ -13,7 +13,7 @@ within_lineage_DE <- function(cds, #metatracker object
                           ){
   d =cds@expression[[lineage]]
   #conditions = d[,conditions]
-  counts = t(as.matrix(sapply(d[,8:ncol(d)], as.numeric))) #a matrix of expression values, with genes in rows and cells in columns
+  counts = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric))) #a matrix of expression values, with genes in rows and cells in columns
   pseudotime = as.matrix(cds@pseudotime[[lineage]]) #a matrix of pseudotime values, each row for a cell
   cell_wt<-as.matrix(rep(1,ncol(counts)),ncol=1)
   #gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt,sce=FALSE)
