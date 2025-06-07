@@ -44,6 +44,216 @@ return(cds)
 }
 
 #' @export
+# Interactive graph modification with gene expression coloring
+graph_mod_interactive <- function(cds,
+                                  reduction_method = "UMAP",
+                                  point_size       = 1,
+                                  node_size        = 3,
+                                  segment_size     = 1,
+                                  min_expr=0.1,
+                                  N                = 10) {
+  g        <- cds@principal_graph[[reduction_method]]
+  Y        <- cds@principal_graph_aux[[reduction_method]]$dp_mst
+  nodes_df <- as.data.frame(t(Y), stringsAsFactors = FALSE)
+  colnames(nodes_df) <- c("x", "y")
+  nodes_df$node <- rownames(nodes_df)
+  nodes_df$col  <- "black"
+  
+  cell_coords <- as.data.frame(reducedDims(cds)[[reduction_method]], stringsAsFactors = FALSE)
+  colnames(cell_coords) <- c("x", "y")
+  cell_coords$cell_id <- rownames(cell_coords)
+  metadata <- as.data.frame(colData(cds), stringsAsFactors = FALSE)
+  
+  set.seed(42)
+  total_cells <- nrow(cell_coords)
+  sample_size <- ceiling(total_cells / N)
+  sampled_cells <- cell_coords %>% slice(sample(seq_len(total_cells), sample_size))
+  
+  cds_exprs_all <- SingleCellExperiment::counts(cds)[ , sampled_cells$cell_id, drop = FALSE]
+  cds_exprs_all <- t(t(cds_exprs_all) / size_factors(cds)[sampled_cells$cell_id])
+  
+  el <- as.data.frame(get.edgelist(g), stringsAsFactors = FALSE)
+  colnames(el) <- c("from", "to")
+  edges_df <- data.frame(
+    from = el$from,
+    to   = el$to,
+    x    = nodes_df$x[match(el$from, nodes_df$node)],
+    y    = nodes_df$y[match(el$from, nodes_df$node)],
+    xend = nodes_df$x[match(el$to,   nodes_df$node)],
+    yend = nodes_df$y[match(el$to,   nodes_df$node)],
+    stringsAsFactors = FALSE
+  )
+  
+  ui <- fluidPage(
+    titlePanel("Interactive Graph Modifier"),
+    fluidRow(
+      column(
+        width = 12, align = "center",
+        selectInput("metadata", "Metadata:", choices = colnames(metadata)),
+        selectInput("gene", "Gene:", choices = c("", rownames(cds_exprs_all))),
+        actionButton("zoom_in",    label = NULL, icon = icon("search-plus")),
+        actionButton("zoom_out",   label = NULL, icon = icon("search-minus")),
+        actionButton("reset_zoom", "Reset Zoom"),
+        tags$span("Pan:"),
+        actionButton("pan_left",   label = NULL, icon = icon("arrow-left")),
+        actionButton("pan_up",     label = NULL, icon = icon("arrow-up")),
+        actionButton("pan_down",   label = NULL, icon = icon("arrow-down")),
+        actionButton("pan_right",  label = NULL, icon = icon("arrow-right")),
+        actionButton("done",       "Done")
+      )
+    ),
+    fluidRow(
+      column(
+        width = 12,
+        plotOutput("plot", click = "clickposition", hover = "hoverpos", width = "100%", height = "600px")
+      )
+    ),
+    fluidRow(column(width = 12, verbatimTextOutput("status")))
+  )
+  
+  server <- function(input, output, session) {
+    rv <- reactiveValues(
+      nodes   = nodes_df,
+      edges   = edges_df,
+      stage   = 0,
+      new_pt  = NULL,
+      hovered = NULL,
+      xlim    = range(nodes_df$x),
+      ylim    = range(nodes_df$y)
+    )
+    
+    output$status <- renderText({
+      if (rv$stage == 0) {
+        "Step 1: Click to place new node."
+      } else {
+        "Step 2: Hover and click an existing node to connect."
+      }
+    })
+    
+    observeEvent(input$clickposition, {
+      pt <- input$clickposition
+      if (rv$stage == 0) {
+        rv$new_pt  <- c(pt$x, pt$y)
+        rv$stage   <- 1
+        rv$hovered <- NULL
+      } else {
+        targ <- if (!is.null(rv$hovered)) rv$hovered else {
+          d2 <- (rv$nodes$x - pt$x)^2 + (rv$nodes$y - pt$y)^2
+          rv$nodes$node[which.min(d2)]
+        }
+        max_node = max(as.numeric(str_split_i(rv$nodes$node, "_", 2)))
+        new_name <- paste0("Y_", max_node + 1)
+        rv$nodes <- rbind(rv$nodes, data.frame(x = rv$new_pt[1], y = rv$new_pt[2], node = new_name, col = "cyan", stringsAsFactors = FALSE))
+        rv$edges <- rbind(rv$edges, data.frame(from = new_name, to = targ,
+                                               x = rv$new_pt[1], y = rv$new_pt[2],
+                                               xend = rv$nodes$x[rv$nodes$node == targ],
+                                               yend = rv$nodes$y[rv$nodes$node == targ],
+                                               stringsAsFactors = FALSE))
+        rv$stage <- 0; rv$new_pt <- NULL; rv$hovered <- NULL
+      }
+    })
+    
+    observeEvent(input$hoverpos, {
+      if (rv$stage == 1) {
+        hv <- input$hoverpos
+        d2 <- (rv$nodes$x - hv$x)^2 + (rv$nodes$y - hv$y)^2
+        i  <- which.min(d2)
+        if (sqrt(d2[i]) < diff(rv$xlim)*0.01 && rv$nodes$col[i] != "cyan") {
+          rv$hovered <- rv$nodes$node[i]
+        } else {
+          rv$hovered <- NULL
+        }
+      }
+    })
+    
+    observeEvent(input$reset_zoom, { rv$xlim <- range(rv$nodes$x); rv$ylim <- range(rv$nodes$y) })
+    observeEvent(input$zoom_in,   { dx <- diff(rv$xlim); dy <- diff(rv$ylim); rv$xlim <- rv$xlim + c(0.1 * dx, -0.1 * dx); rv$ylim <- rv$ylim + c(0.1 * dy, -0.1 * dy) })
+    observeEvent(input$zoom_out,  { dx <- diff(rv$xlim); dy <- diff(rv$ylim); rv$xlim <- rv$xlim + c(-0.1 * dx, 0.1 * dx); rv$ylim <- rv$ylim + c(-0.1 * dy, 0.1 * dy) })
+    observeEvent(input$pan_left,  { dx <- diff(rv$xlim); rv$xlim <- rv$xlim + c(-0.1 * dx, -0.1 * dx) })
+    observeEvent(input$pan_right, { dx <- diff(rv$xlim); rv$xlim <- rv$xlim + c( 0.1 * dx,  0.1 * dx) })
+    observeEvent(input$pan_up,    { dy <- diff(rv$ylim); rv$ylim <- rv$ylim + c( 0.1 * dy,  0.1 * dy) })
+    observeEvent(input$pan_down,  { dy <- diff(rv$ylim); rv$ylim <- rv$ylim + c(-0.1 * dy, -0.1 * dy) })
+    
+    observe({
+      gene_selected <- !is.null(input$gene) && input$gene != "" && input$gene %in% rownames(cds_exprs_all)
+      if (gene_selected) {
+        output$plot <- renderPlot({
+          expr_values <- cds_exprs_all[input$gene, sampled_cells$cell_id]
+          sampled <- sampled_cells %>% mutate(expr = expr_values)
+          p <- ggplot() +
+            geom_point(data = sampled, aes(x = x, y = y, color = log10(expr + min_expr)), size = point_size) +
+            scale_color_gradient(low = adjustcolor("gray75", alpha.f = 0.2), high = "red")
+          
+          p <- p +
+            geom_segment(data = rv$edges, aes(x = x, y = y, xend = xend, yend = yend), size = segment_size, color = "black") +
+            geom_point(data = rv$nodes, aes(x = x, y = y), size = node_size, color = rv$nodes$col)
+          
+          if (!is.null(rv$hovered)) {
+            hrow <- rv$nodes[rv$nodes$node == rv$hovered, ]
+            p <- p + geom_point(data = hrow, aes(x = x, y = y), size = node_size * 1.5, color = "green")
+          }
+          
+          if (!is.null(rv$new_pt)) {
+            temp_df <- data.frame(x = rv$new_pt[1], y = rv$new_pt[2])
+            p <- p + geom_point(data = temp_df, aes(x = x, y = y), size = node_size * 1.5, color = "red")
+          }
+          
+          p + coord_cartesian(xlim = rv$xlim, ylim = rv$ylim) + theme_minimal()
+        })
+      }
+      else if (!gene_selected && !is.null(input$metadata) && input$metadata %in% colnames(metadata)) {
+        output$plot <- renderPlot({
+          meta_values <- metadata[sampled_cells$cell_id, input$metadata]
+          sampled <- sampled_cells %>% mutate(meta_value = meta_values)
+          
+          is_discrete <- is.factor(meta_values) || is.character(meta_values)
+          p <- ggplot() +
+            geom_point(data = sampled, aes(x = x, y = y, color = meta_value), size = point_size) +
+            if (is_discrete) {
+              scale_color_discrete(name = input$metadata)
+            } else {
+              scale_color_gradient(low = "lightblue", high = "firebrick4", name = input$metadata, trans = "log10")
+            }
+          
+          p <- p +
+            geom_segment(data = rv$edges, aes(x = x, y = y, xend = xend, yend = yend), size = segment_size, color = "black") +
+            geom_point(data = rv$nodes, aes(x = x, y = y), size = node_size, color = rv$nodes$col)
+          
+          if (!is.null(rv$hovered)) {
+            hrow <- rv$nodes[rv$nodes$node == rv$hovered, ]
+            p <- p + geom_point(data = hrow, aes(x = x, y = y), size = node_size * 1.5, color = "green")
+          }
+          
+          if (!is.null(rv$new_pt)) {
+            temp_df <- data.frame(x = rv$new_pt[1], y = rv$new_pt[2])
+            p <- p + geom_point(data = temp_df, aes(x = x, y = y), size = node_size * 1.5, color = "red")
+          }
+          
+          p + coord_cartesian(xlim = rv$xlim, ylim = rv$ylim) + theme_minimal()
+        })
+      }
+    })
+    
+    observeEvent(input$metadata, {
+      updateSelectInput(session, "gene", selected = "")
+    })
+    
+    observeEvent(input$done, { stopApp(list(nodes = rv$nodes, edges = rv$edges)) })
+  }
+  
+  res <- runApp(shinyApp(ui, server))
+  new_nodes <- res$nodes
+  new_edges <- res$edges
+  new_nodes = data.frame(name=new_nodes$node, x = new_nodes$x, y = new_nodes$y)
+  rownames(new_nodes) <- new_nodes$name
+  
+  cds@principal_graph_aux[[reduction_method]]$dp_mst <- t(as.matrix(new_nodes[, c("x", "y")]))
+  cds@principal_graph[[reduction_method]] <- graph_from_data_frame(new_edges[, c("from", "to")], vertices = new_nodes, directed = FALSE)
+  
+  return(cds)
+}
+
+#' @export
 #generate node plot
 node_plot <- function(cds, point_size = 1, reduction_method = "UMAP", segment_size = 1){
 # 1) Nodes data frame
