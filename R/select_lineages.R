@@ -685,7 +685,20 @@ n = which(lengths==min(lengths))[1]
 sub.graph = sub.graph[[n]]
 }
 
+find_start_node <- function(cds){
+  nodes = c()
+  for(name in names(cds@graphs)){
+    sub.graph = cds_new@graphs[[name]]
+    start_end = V(sub.graph)[degree(sub.graph) == 1]$name
+    nodes = append(nodes, start_end)
+  }
+  nodes = as.character(nodes)
+  start = names(sort(table(nodes),decreasing=TRUE)[1])
+  start
+}
+
 get_lineage_object <- function(cds, lineage = FALSE, N = FALSE)
+start = find_start_node(cds)
 {
 cds_name = deparse(substitute(cds))
 if(lineage != FALSE){
@@ -718,7 +731,7 @@ closest_vertex = as.data.frame(closest_vertex)
 cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
 source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
 cds_subset <- project2MST(cds_subset, project_point_to_line_segment, F, T, "UMAP", nodes_UMAP[,names(V(sub.graph))])
-cds_subset <- order_cells(cds_subset, root_pr_nodes = c(paste0("Y_", as.character(start))))
+cds_subset <- order_cells(cds_subset, root_pr_nodes = start)
 return(cds_subset)
 }
 
