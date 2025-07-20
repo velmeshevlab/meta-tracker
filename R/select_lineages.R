@@ -697,7 +697,7 @@ find_start_node <- function(cds){
   start
 }
 
-get_lineage_object <- function(cds, lineage = FALSE, N = FALSE)
+get_lineage_object <- function(cds, lineage = FALSE, N = FALSE){
 start = find_start_node(cds)
 {
 cds_name = deparse(substitute(cds))
@@ -734,6 +734,7 @@ cds_subset <- project2MST(cds_subset, project_point_to_line_segment, F, T, "UMAP
 cds_subset <- order_cells(cds_subset, root_pr_nodes = start)
 return(cds_subset)
 }
+  }
 
 isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions = NULL, starting_clusters = NULL, subset = FALSE, N = 5, cl = 1){
   cds_name = deparse(substitute(cds))
