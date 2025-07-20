@@ -695,7 +695,7 @@ find_start_node <- function(cds){
   start
 }
 
-get_lineage_object <- function(cds, lineage = FALSE, N = FALSE){
+get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = FALSE){
 start = find_start_node(cds)
 {
 if(lineage != FALSE){
@@ -727,9 +727,11 @@ colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
 closest_vertex = apply(cells_UMAP[,c("UMAP_1", "UMAP_2")], 1, calculate_closest_vertex, nodes = as.matrix(nodes_UMAP[,names(V(sub.graph))]))
 closest_vertex = as.data.frame(closest_vertex)
 cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
-source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
-cds_subset <- project2MST(cds_subset, project_point_to_line_segment, F, T, "UMAP", nodes_UMAP[,names(V(sub.graph))])
-cds_subset <- order_cells(cds_subset, root_pr_nodes = start)
+if(recalculate_pt == TRUE){
+  source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
+  cds_subset <- project2MST(cds_subset, project_point_to_line_segment, F, T, "UMAP", nodes_UMAP[,names(V(sub.graph))])
+  cds_subset <- order_cells(cds_subset, root_pr_nodes = start)
+  }
 return(lineage_cds)
 }
   }
