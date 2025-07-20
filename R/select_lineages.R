@@ -685,14 +685,12 @@ n = which(lengths==min(lengths))[1]
 sub.graph = sub.graph[[n]]
 }
 
-get_lineage_object <- function(cds, lineage = FALSE, start, N = FALSE)
+get_lineage_object <- function(cds, lineage = FALSE, N = FALSE)
 {
 cds_name = deparse(substitute(cds))
 if(lineage != FALSE){
-input = paste0("sub.graph = ",cds_name,"@graphs$", lineage)
-eval(parse(text=input))
-input = paste0("sel.cells = ",cds_name,"@lineages$", lineage)
-eval(parse(text=input))
+sub.graph = cds@graphs[[lineage]]
+sel.cells = cds@lineages[[lineage]]
 }
 else{
 sel.cells = colnames(cds)
