@@ -543,10 +543,8 @@ eval(parse(text=paste0("return(", cds_name, ")")))
 
 #' @export
 isolate_lineage <- function(cds, lineage, sel_clusters = NULL, start_regions = F, starting_clusters = F, subset = FALSE, N = 5, cl = 1){
-cds_name = deparse(substitute(cds))
 sel.cells = isolate_lineage_sub(cds, lineage, sel_clusters = sel_clusters, start_regions = start_regions, starting_clusters = starting_clusters, subset = subset, N = N, cl = cl)
-input = paste0(cds_name, "@lineages$", lineage, " <- sel.cells")
-eval(parse(text=input))
+cds@lineages[[lineage]] <- sel.cells
 return(cds)
 }
 
@@ -720,13 +718,12 @@ cds_subset = cds[,sel.cells]
 if(lineage == FALSE){
 sub.graph = principal_graph(cds_subset)[["UMAP"]]
 }
-as(cds_subset,"cell_data_set")
 cds_subset@principal_graph[["UMAP"]] <- sub.graph
 cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[,names(V(sub.graph))]
 cds_subset@clusters[["UMAP"]]$partitions <- cds_subset@clusters[["UMAP"]]$partitions[colnames(cds_subset)]
 #recalculate closest vertex for the selected cells
-cells_UMAP = as.data.frame(reducedDims(cds_subset)["UMAP"])
-closest_vertex = apply(cells_UMAP[,c("umap_1", "umap_2")], 1, calculate_closest_vertex, nodes = as.matrix(nodes_UMAP[,names(V(sub.graph))]))
+cells_UMAP = as.data.frame(cds_subset@reducedDims[["UMAP"]])
+closest_vertex = apply(cells_UMAP[,c("UMAP_1", "UMAP_2")], 1, calculate_closest_vertex, nodes = as.matrix(nodes_UMAP[,names(V(sub.graph))]))
 closest_vertex = as.data.frame(closest_vertex)
 cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
 source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
@@ -737,9 +734,7 @@ return(lineage_cds)
   }
 
 isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions = NULL, starting_clusters = NULL, subset = FALSE, N = 5, cl = 1){
-  cds_name = deparse(substitute(cds))
-  input = paste0("sub.graph = ",cds_name,"@graphs$", lineage)
-  eval(parse(text=input))
+  sub.graph = cds@graphs[[lineage]]
   nodes_UMAP = cds@principal_graph_aux[["UMAP"]]$dp_mst
   if(subset == F){
     nodes_UMAP.sub = as.data.frame(t(nodes_UMAP[,names(V(sub.graph))]))
