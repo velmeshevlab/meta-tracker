@@ -723,6 +723,7 @@ cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[,names(V(sub.graph
 cds_subset@clusters[["UMAP"]]$partitions <- cds_subset@clusters[["UMAP"]]$partitions[colnames(cds_subset)]
 #recalculate closest vertex for the selected cells
 cells_UMAP = as.data.frame(reducedDims(cds_subset)[["UMAP"]])
+colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
 closest_vertex = apply(cells_UMAP[,c("UMAP_1", "UMAP_2")], 1, calculate_closest_vertex, nodes = as.matrix(nodes_UMAP[,names(V(sub.graph))]))
 closest_vertex = as.data.frame(closest_vertex)
 cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
