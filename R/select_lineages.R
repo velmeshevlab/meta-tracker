@@ -700,7 +700,6 @@ find_start_node <- function(cds){
 get_lineage_object <- function(cds, lineage = FALSE, N = FALSE){
 start = find_start_node(cds)
 {
-cds_name = deparse(substitute(cds))
 if(lineage != FALSE){
 sub.graph = cds@graphs[[lineage]]
 sel.cells = cds@lineages[[lineage]]
@@ -721,7 +720,8 @@ cds_subset = cds[,sel.cells]
 if(lineage == FALSE){
 sub.graph = principal_graph(cds_subset)[["UMAP"]]
 }
-principal_graph(cds_subset)[["UMAP"]] <- sub.graph
+as(cds_subset,"cell_data_set")
+cds_subset@principal_graph[["UMAP"]] <- sub.graph
 cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[,names(V(sub.graph))]
 cds_subset@clusters[["UMAP"]]$partitions <- cds_subset@clusters[["UMAP"]]$partitions[colnames(cds_subset)]
 #recalculate closest vertex for the selected cells
@@ -732,7 +732,7 @@ cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- cl
 source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
 cds_subset <- project2MST(cds_subset, project_point_to_line_segment, F, T, "UMAP", nodes_UMAP[,names(V(sub.graph))])
 cds_subset <- order_cells(cds_subset, root_pr_nodes = start)
-return(cds_subset)
+return(lineage_cds)
 }
   }
 
