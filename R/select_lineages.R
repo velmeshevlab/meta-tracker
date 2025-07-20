@@ -746,6 +746,7 @@ isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions
   mean.dist = path.distance(nodes_UMAP.sub)
   r = mean.dist*N
   cells_UMAP = as.data.frame(reducedDims(cds)["UMAP"])
+  colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
   cells_UMAP = cells_UMAP[,c("UMAP_1", "UMAP_2")]
   sel.cells = cell.selector(nodes_UMAP.sub, cells_UMAP, r, cl = cl)
   #only keep cells in the progenitor and lineage-specific clusters
