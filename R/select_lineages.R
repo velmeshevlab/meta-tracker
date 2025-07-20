@@ -695,7 +695,7 @@ find_start_node <- function(cds){
   start
 }
 
-get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = FALSE){
+get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = TRUE){
 start = find_start_node(cds)
 {
 if(lineage != FALSE){
@@ -732,7 +732,7 @@ if(recalculate_pt == TRUE){
   cds_subset <- project2MST(cds_subset, project_point_to_line_segment, F, T, "UMAP", nodes_UMAP[,names(V(sub.graph))])
   cds_subset <- order_cells(cds_subset, root_pr_nodes = start)
   }
-return(lineage_cds)
+return(cds_subset)
 }
   }
 
