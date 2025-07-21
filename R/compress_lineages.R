@@ -1,3 +1,17 @@
+filter_by_expression <- function(cds, ratio = 0.01){
+  data = counts(cds)
+  lineages = names(cds@lineages)
+  all.expressed_genes = c()
+  for(lineage in lineages){
+    cells = as.character(cds@lineages[[lineage]])
+    data.sub = data[,cells]
+    expressed_genes = rownames(data.sub)[rowSums(data.sub> 0) > ratio*ncol(data.sub)]
+    all.expressed_genes = append(all.expressed_genes, expressed_genes)
+  }
+  all.expressed_genes = unique(all.expressed_genes)
+  all.expressed_genes
+}
+
 compress_lineage_v3_2 <- function(cds, lineage, N, cores = 1, ID){
   cds_name = deparse(substitute(cds))
   input = paste0("compress_expression_v3_2(",cds_name,", lineage = '", lineage, "', N = ", N, ", cores = ", cores, ", ID = ", ID, ")")
