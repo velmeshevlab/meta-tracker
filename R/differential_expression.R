@@ -1,10 +1,13 @@
 #scaled_FC is fold change of dynamic gene expression scaled based on 95 percentile of expression of the entire dataset.
 #Helps to filter out genes that are dynamically expressed in the given lineage but are expressed at much lower level than in other lineages.
 
-
-
-within_lineage_DE <- function(cds, #metatracker object
-                          lineage, #name of the lineage to analyze
+within_lineage_DE_par <- function(cds, cores){
+lineages = names(cds@lineages)
+out <- mclapply(lineages, within_lineage_DE, cds = cds)
+}
+         
+within_lineage_DE <- function(lineage, #name of the lineage to analyze
+                          cds, #metatracker object
                           conditions = NULL, #a vector of condition information
                           nknots = 3, #number of knots used to fit the GAM
                           pairwise=TRUE, #pairwise comparison between different conditions
@@ -13,7 +16,6 @@ within_lineage_DE <- function(cds, #metatracker object
                           FC = 0.5, #fold change value threshold
                           parallel = F
                           ){
-  for(lineage in lineages)
   d =cds@expression[[lineage]]
   #conditions = d[,conditions]
   counts = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric))) #a matrix of expression values, with genes in rows and cells in columns
