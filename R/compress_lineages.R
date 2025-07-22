@@ -1,3 +1,9 @@
+compress_3_2 <- function(df, leftover, n){
+ df_comp = sw(df[1:(length(df) - (n + leftover))], n, mean, n)
+ df_comp = c(df_comp, mean(df[(length(df[1:(length(df) - (n + leftover))])+ 1): length(df)]))
+ return(df_comp)
+}
+
 filter_by_expression <- function(cds, ratio = 0.01){
   data = counts(cds)
   lineages = names(cds@lineages)
