@@ -4,6 +4,7 @@
 within_lineage_DE_par <- function(cds, cores){
 lineages = names(cds@lineages)
 out <- mclapply(lineages, within_lineage_DE, cds = cds, mc.cores = cores)
+names(out) <- lineages
 cds@dynamic_genes <- out
 cds
 }
