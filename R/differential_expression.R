@@ -21,6 +21,7 @@ within_lineage_DE <- function(lineage, #name of the lineage to analyze
                           ){
   print(paste0("Testing lineage ", lineage))
   d =cds@expression[[lineage]]
+  d = d[rownames(cds),]
   #conditions = d[,conditions]
   counts = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric))) #a matrix of expression values, with genes in rows and cells in columns
   pseudotime = as.matrix(cds@pseudotime[[lineage]]) #a matrix of pseudotime values, each row for a cell
