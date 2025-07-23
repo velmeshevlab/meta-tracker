@@ -12,7 +12,7 @@ calculate_dynamic_FC_single_gene <- function(gene, cds, test_lineage, comp_linea
   auc_dataset1 <- trapz(pt, exp1[,gene])
   auc_dataset2 <- trapz(pt, exp2[,gene])
   auc_difference <- log2(auc_dataset1/auc_dataset2)
-  auc_difference
+  auc_difference 
 }
 
 calculate_dynamic_FC <- function(cds, test_lineage, genes, lineages){
@@ -38,12 +38,19 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
   FCs
 }
 
-lineage_specific_genes <- function(cds, test_lineage, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1){
+lineage_specific_genes_par <- function(cds, cores){
+  lineages = names(cds@lineages)
+  out <- mclapply(lineages, lineage_specific_genes, cds = cds, mc.cores = cores)
+  names(out) <- lineages
+  cds@lineage_genes <- out
+  cds 
+}
+
+lineage_specific_genes <- function(test_lineage, cds, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 0.5){
     lineages = names(cds@lineages)
     lineage_genes = get_lineage_genes(cds, test_lineage, U = U, nknots = nknots, parallel = parallel, p_cutoff = p_cutoff, FC_cutoff = FC_cutoff, lineages = lineages)
     lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
-    cds@lineage_genes[[test_lineage]] <- lineage_genes
-    cds
+    lineage_genes
 }
 
 branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1){
