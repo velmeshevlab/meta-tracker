@@ -19,23 +19,16 @@ filter_by_expression <- function(cds, ratio = 0.01){
 }
 
 compress_lineage_v3_2 <- function(cds, lineage, N, cores = 1, ID){
-  cds_name = deparse(substitute(cds))
-  input = paste0("compress_expression_v3_2(",cds_name,", lineage = '", lineage, "', N = ", N, ", cores = ", cores, ", ID = ", ID, ")")
-  exp = eval(parse(text=input))
-  input = paste0(cds_name, "@expression$", lineage, " <- exp$expression")
-  eval(parse(text=input))
-  input = paste0(cds_name, "@expectation$", lineage, " <- exp$expectation")
-  eval(parse(text=input))
-  input = paste0(cds_name, "@pseudotime$", lineage, " <- exp$pseudotime")
-  eval(parse(text=input))
-  eval(parse(text=paste0("return(",cds_name, ")")))
+  exp = compress_expression_v3_2(cds, lineage = lineage, N = N, cores = cores, ID = ID)
+  cds@expression[[lineage]] <- exp$expression
+  cds@expectation[[lineage]] <- exp$expectation
+  cds@pseudotime$[[lineage]] <- exp$pseudotime
+  cds
 }
 
 compress_expression_v3_2 <- function(cds, lineage, N, cores = 1, ID = TRUE){
-  cds_name = deparse(substitute(cds))
   if(lineage != FALSE){
-    input = paste0("sel.cells = ",cds_name,"@lineages$", lineage)
-    eval(parse(text=input))
+    sel.cells = cds@lineages[[lineage]]
   }
   sel.cells = sel.cells[sel.cells %in% colnames(cds)]
   cds_subset = cds[,sel.cells]
@@ -454,7 +447,7 @@ compress_expression_v3 <- function(cds, lineage, N, cores = 1){
   return(list("expression" = exp_data_ordered, "expectation" = fit, "pseudotime" = d))
   exp$expression[exp$expression < 0] <- 0
   exp$expectation[exp$expectation < 0] <- 0
-  return(exp)
+  exp
 }
 
 compress_3 <- function(df, length, unique, ID, n, N, l){
