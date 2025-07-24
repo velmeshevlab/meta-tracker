@@ -22,7 +22,7 @@ compress_lineage_v3_2 <- function(cds, lineage, N, cores = 1, ID){
   exp = compress_expression_v3_2(cds, lineage = lineage, N = N, cores = cores, ID = ID)
   cds@expression[[lineage]] <- exp$expression
   cds@expectation[[lineage]] <- exp$expectation
-  cds@pseudotime$[[lineage]] <- exp$pseudotime
+  cds@pseudotime[[lineage]] <- exp$pseudotime
   cds
 }
 
