@@ -16,7 +16,7 @@ within_lineage_DE <- function(lineage, #name of the lineage to analyze
                           pairwise=TRUE, #pairwise comparison between different conditions
                           contrast_type = "end",
                           p = 0.05, #p value threshold
-                          FC = 0.5, #fold change value threshold
+                          FC = 0, #fold change value threshold
                           parallel = F
                           ){
   print(paste0("Testing lineage ", lineage))
