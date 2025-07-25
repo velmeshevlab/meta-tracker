@@ -46,14 +46,14 @@ lineage_specific_genes_par <- function(cds, cores){
   cds 
 }
 
-lineage_specific_genes <- function(test_lineage, cds, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 0.5){
+lineage_specific_genes <- function(test_lineage, cds, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 0.2){
     lineages = names(cds@lineages)
     lineage_genes = get_lineage_genes(cds, test_lineage, U = U, nknots = nknots, parallel = parallel, p_cutoff = p_cutoff, FC_cutoff = FC_cutoff, lineages = lineages)
     lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
     lineage_genes
 }
 
-branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 1){
+branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 0.2){
   lineages = names(cds@lineages)
   genes = c()
   for(test_lineage in test_lineages){
