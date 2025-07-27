@@ -38,17 +38,17 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
   FCs
 }
 
-lineage_specific_genes_par <- function(cds, cores){
+lineage_specific_genes_par <- function(cds, cores, dyn_FC_cutoff = 0){
   lineages = names(cds@lineages)
-  out <- mclapply(lineages, lineage_specific_genes, cds = cds, mc.cores = cores)
+  out <- mclapply(lineages, lineage_specific_genes, cds = cds, dyn_FC_cutoff = dyn_FC_cutoff, mc.cores = cores)
   names(out) <- lineages
   cds@lineage_genes <- out
   cds 
 }
 
-lineage_specific_genes <- function(test_lineage, cds, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 0){
+lineage_specific_genes <- function(test_lineage, cds, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 0, dyn_FC_cutoff = 0){
     lineages = names(cds@lineages)
-    lineage_genes = get_lineage_genes(cds, test_lineage, U = U, nknots = nknots, parallel = parallel, p_cutoff = p_cutoff, FC_cutoff = FC_cutoff, lineages = lineages)
+    lineage_genes = get_lineage_genes(cds, test_lineage, U = U, nknots = nknots, parallel = parallel, p_cutoff = p_cutoff, FC_cutoff = FC_cutoff, lineages = lineages, dyn_FC_cutoff = dyn_FC_cutoff)
     lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
     lineage_genes
 }
@@ -100,7 +100,7 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
   cds
 }
 
-get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 0, lineages = NULL){
+get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 0, lineages = NULL, dyn_FC_cutoff = 0){
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
   all_metacells = c()
   lineage_list = list()
