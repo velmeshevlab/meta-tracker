@@ -53,17 +53,19 @@ lineage_specific_genes <- function(test_lineage, cds, U = NULL, nknots = 6, para
     lineage_genes
 }
 
-branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 0){
+branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 0, dyn_FC_cutoff = 0){
   lineages = names(cds@lineages)
   genes = c()
   for(test_lineage in test_lineages){
-    dynamic_genes = rownames(cds@dynamic_genes[[test_lineage]])
+    dynamic = cds@dynamic_genes[[test_lineage]]
+    dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dyn_FC_cutoff,])
     genes = c(genes, dynamic_genes)
     }
   genes = unique(genes)
   for(lineage in lineages){
     genes = genes[genes %in% colnames(cds@expectation[[lineage]])]
     }
+  print(paste0("Testing ", length(genes), " genes"))
   all_Ps <- matrix(0, nrow = length(genes), ncol = 0)
   all_FCs <- matrix(0, nrow = length(genes), ncol = 0)
   for(test_lineage in test_lineages){
@@ -117,13 +119,15 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     pt_list[[i]] <- pt
     i <- i + 1
     }
-  dynamic_genes = rownames(cds@dynamic_genes[[test_lineage]])
+  dynamic = cds@dynamic_genes[[test_lineage]]
+  dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dyn_FC_cutoff,])
   if(length(genes) == 0){
     counts = counts[dynamic_genes,]
   }
   else{
     counts = counts[genes,]
   }
+  print(paste0("Testing ", nrow(counts), " genes"))
   names(lineage_list) <- lineages
   names(pt_list) <- lineages
   cellWeights <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
