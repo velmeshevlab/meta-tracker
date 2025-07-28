@@ -1,3 +1,102 @@
+get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, lineages = NULL, dyn_FC_cutoff = 0){
+  counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
+  all_metacells = c()
+  lineage_list = list()
+  pt_list = list()
+  i = 1
+  for(lineage in lineages){
+    metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]])))
+    d = cds@expression[[lineage]]
+    d = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric)))
+    colnames(d) <- metacells
+    counts <- cbind(counts, d)
+    all_metacells <- c(all_metacells, metacells)
+    lineage_list[[i]] <- metacells
+    pt = cds@pseudotime[[lineage]][,1]
+    names(pt) <- metacells
+    pt_list[[i]] <- pt
+    i <- i + 1
+  }
+  dynamic = cds@dynamic_genes[[test_lineage]]
+  dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dyn_FC_cutoff,])
+  if(length(genes) == 0){
+    counts = counts[all_dynamic_genes ,]
+  }
+  else{
+    counts = counts[genes,]
+  }
+  print(paste0("Testing ", nrow(counts), " genes"))
+  names(lineage_list) <- lineages
+  names(pt_list) <- lineages
+  cellWeights <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
+  rownames(cellWeights) <- all_metacells
+  colnames(cellWeights) <- lineages
+  for (list_name in names(lineage_list)) {
+    cellWeights[, list_name] <- as.numeric(all_metacells %in% lineage_list[[list_name]])
+  }
+  pseudotime <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
+  rownames(pseudotime) <- all_metacells
+  colnames(pseudotime) <- lineages
+  for (list_name in names(pt_list)) {
+    pseudotime[names(pt_list[[list_name]]), list_name] <- pt_list[[list_name]]
+  }
+  colnames(pseudotime) <- lineages
+  rownames(pseudotime) <- all_metacells
+  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots, parallel = parallel, BPPARAM = BPPARAM)
+  res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
+  if(length(lineages) > 2){
+    index = which(test_lineage == lineages)
+    p_list = c()
+    p_names = c()
+    for(linege in lineages){
+      index2 = which(linege == lineages)
+      if(index != index2){
+        if(index<index2){
+          p_name = paste0("pvalue_", index, "vs", index2)
+        }
+        else{
+          p_name = paste0("pvalue_", index2, "vs", index)
+        }
+        p_name_new = paste0("pvalue_", test_lineage, "vs", linege)
+        p_list <- c(p_list, p_name)
+        p_names <- c(p_names, p_name_new)
+      }
+    }
+    p_values = res[,p_list]
+    colnames(p_values) <- p_names
+    p_values_sel = as.matrix(p_values)
+    if(nrow(p_values_sel) == 0){
+      return(NULL)
+    }
+    gene_names = rownames(p_values_sel)
+    FCs = calculate_dynamic_FC(cds, test_lineage, gene_names, lineages)
+    FCs = t(FCs)
+    FCs_sel = FCs
+    p_values_sel = p_values_sel[rownames(FCs_sel),]
+    combined_pvalue <- apply(p_values_sel, 1, get_meta_p)
+    average_FC = apply(FCs_sel, 1, get_average_FC)
+    colnames_old = c(colnames(p_values_sel), colnames(FCs_sel))
+    final_res = cbind(p_values_sel, FCs_sel, combined_pvalue, average_FC)
+    colnames(final_res) <- c(colnames_old, c("meta_p", "average_FC"))
+    final_res = as.data.frame(final_res)
+    final_res
+  }
+  else{
+    res_sel = res
+    p_values_sel = as.matrix(res_sel[,"pvalue"])
+    rownames(p_values_sel) <- rownames(res_sel)
+    colnames(p_values_sel) <- paste0("pvalue_", test_lineage, "vs", lineages[lineages != test_lineage])
+    gene_names = rownames(p_values_sel)
+    FCs = calculate_dynamic_FC_single(cds, test_lineage, gene_names, lineages[lineages != test_lineage])
+    FCs_sel = FCs
+    p_values_sel = p_values_sel[names(FCs_sel),]
+    final_res = as.data.frame(cbind(p_values_sel, FCs_sel))
+    colnames(final_res) <- c("meta_p", "average_FC")
+    final_res = as.data.frame(final_res)
+    final_res
+  }
+}
+
 calculate_dynamic_FC_single <- function(cds, test_lineage, genes, comp_lineage){
   genes = genes[genes %in% colnames(cds@expectation[[test_lineage]])]
   FCs = sapply(genes, calculate_dynamic_FC_single_gene, cds = cds, test_lineage = test_lineage, comp_lineage = comp_lineage)
