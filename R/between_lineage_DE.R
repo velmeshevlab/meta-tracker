@@ -80,6 +80,7 @@ get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nkno
     index = which(test_lineage == lineages)
     p_list = c()
     p_names = c()
+    fc_names = c()
     for(linege in lineages){
       index2 = which(linege == lineages)
       if(index != index2){
@@ -90,8 +91,10 @@ get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nkno
           p_name = paste0("pvalue_", index2, "vs", index)
         }
         p_name_new = paste0("pvalue_", test_lineage, "vs", linege)
+        fc_name_new = paste0("FC_", test_lineage, "vs", linege)
         p_list <- c(p_list, p_name)
         p_names <- c(p_names, p_name_new)
+        fc_names <- c(fc_names, fc_name_new)
       }
     }
     p_values = res[,p_list]
@@ -104,6 +107,7 @@ get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nkno
     FCs = calculate_dynamic_FC(cds, test_lineage, gene_names, lineages)
     FCs = t(FCs)
     FCs_sel = FCs
+    colnames(FCs_sel) <- fc_names
     p_values_sel = p_values_sel[rownames(FCs_sel),]
     combined_pvalue <- apply(p_values_sel, 1, get_meta_p)
     average_FC = apply(FCs_sel, 1, get_average_FC)
