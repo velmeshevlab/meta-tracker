@@ -51,8 +51,15 @@ get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nkno
   }
   dynamic = cds@dynamic_genes[[test_lineage]]
   dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dyn_FC_cutoff,])
+  all_dynamic_genes = c()
+  for(lineage in lineages){
+      dynamic = cds@dynamic_genes[[lineage]]
+      lin_dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dyn_FC_cutoff,])
+      all_dynamic_genes = c(all_dynamic_genes, lin_dynamic_genes)
+  }
+  all_dynamic_genes = unique(all_dynamic_genes)
   if(length(genes) == 0){
-    counts = counts[dynamic_genes ,]
+    counts = counts[all_dynamic_genes ,]
   }
   else{
     counts = counts[genes,]
