@@ -1,30 +1,3 @@
-format_list_out <- function(list_output, cds){
-  lineages = names(cds_new@lineages)
-  n_comp = length(lineages)-1
-  output = list()
-  for(lineage in lineages){
-    out_lineage = list_output[,lineage]
-    out_lin_matrix = do.call(rbind, out_lineage)
-    p_names = make_comp_names(lineage, lineages, "pvalue_")
-    FC_names = make_comp_names(lineage, lineages, "FC_")
-    colnames(out_lin_matrix) <- c(p_names, FC_names, "meta_p", "average_FC")
-    rownames(out_lin_matrix) <- rownames(cds@dynamic_genes)
-    output[[lineage]] <- out_lin_matrix
-  }
-  output
-}
-
-make_comp_names <- function(test_lineage, lineages, suffix){
-names = c()
-for(lineage in lineages){
-  if(lineage != test_lineage){
-    name_new = paste0(suffix, test_lineage, "vs", lineage)
-    names <- c(names, name_new)
-    }
-}
-names
-}
-    
 calculate_dynamic_FC_single <- function(cds, test_lineage, genes, comp_lineage){
   genes = genes[genes %in% colnames(cds@expectation[[test_lineage]])]
   FCs = sapply(genes, calculate_dynamic_FC_single_gene, cds = cds, test_lineage = test_lineage, comp_lineage = comp_lineage)
