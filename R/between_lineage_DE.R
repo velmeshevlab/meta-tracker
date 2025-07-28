@@ -127,7 +127,7 @@ branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6
   cds
 }
 
-get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, parallel = F, BPPARAM = F, p_cutoff = 0.05, FC_cutoff = 0, lineages = NULL, dyn_FC_cutoff = 0){
+get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, parallel = F, BPPARAM = F, p_cutoff = F, FC_cutoff = 0, lineages = NULL, dyn_FC_cutoff = 0){
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
   all_metacells = c()
   lineage_list = list()
