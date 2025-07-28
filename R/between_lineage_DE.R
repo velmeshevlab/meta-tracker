@@ -47,28 +47,6 @@ lineage_specific_genes_par <- function(cds, cores, dyn_FC_cutoff = 0){
 }
 
 lineage_specific_genes <- function(test_lineage, cds, U = NULL, nknots = 6, parallel = F, BPPARAM = BPPARAM, p_cutoff = 0.05, FC_cutoff = 0, dyn_FC_cutoff = 0){
-    library(monocle3)
-    library(igraph)
-    library(ggplot2)
-    library(pbapply)
-    library(devtools)
-    library(dplyr)
-    library(plotly)
-    library(parallel)
-    library(evobiR)
-    library(shiny)
-    library(colorspace)
-    library(BiocParallel)
-    library(tradeSeq)
-    library(stringr)
-    library(ggnewscale)
-    library(pracma)
-    library("metap")
-    source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/between_lineage_DE.R")
-    source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/compress_lineages.R")
-    source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/differential_expression.R")
-    source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/plotting.R")
-    source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/select_lineages.R")
     lineages = names(cds@lineages)
     lineage_genes = get_lineage_genes(cds, test_lineage, U = U, nknots = nknots, parallel = parallel, BPPARAM = BPPARAM, p_cutoff = p_cutoff, FC_cutoff = FC_cutoff, lineages = lineages, dyn_FC_cutoff = dyn_FC_cutoff)
     lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
