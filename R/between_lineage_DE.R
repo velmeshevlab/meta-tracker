@@ -1,3 +1,35 @@
+lineage_specific_genes <- function(test_lineage, cds, U = NULL, nknots = 6, dyn_FC_cutoff = 0){
+    library(monocle3)
+    library(igraph)
+    library(ggplot2)
+    library(pbapply)
+    library(devtools)
+    library(dplyr)
+    library(plotly)
+    library(parallel)
+    library(evobiR)
+    library(shiny)
+    library(colorspace)
+    library(BiocParallel)
+    library(tradeSeq)
+    library(stringr)
+    library(ggnewscale)
+    library(pracma)
+    library("metap")
+    source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/between_lineage_DE.R")
+    source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/compress_lineages.R")
+    source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/differential_expression.R")
+    source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/plotting.R")
+    source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/select_lineages.R")
+    lineages = names(cds@lineages)
+    lineage_genes = get_lineage_genes_v2(cds, test_lineage, U = U, nknots = nknots, lineages = lineages, dyn_FC_cutoff = dyn_FC_cutoff)
+    if(length(lineage_genes) > 0){
+    lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
+    lineage_genes
+    }
+    else{return(NULL)}
+}
+
 get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, lineages = NULL, dyn_FC_cutoff = 0){
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
   all_metacells = c()
@@ -42,7 +74,7 @@ get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nkno
   }
   colnames(pseudotime) <- lineages
   rownames(pseudotime) <- all_metacells
-  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots, parallel = parallel, BPPARAM = BPPARAM)
+  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots)
   res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
   if(length(lineages) > 2){
     index = which(test_lineage == lineages)
