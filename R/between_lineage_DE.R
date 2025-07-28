@@ -52,7 +52,7 @@ get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nkno
   dynamic = cds@dynamic_genes[[test_lineage]]
   dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dyn_FC_cutoff,])
   if(length(genes) == 0){
-    counts = counts[all_dynamic_genes ,]
+    counts = counts[dynamic_genes ,]
   }
   else{
     counts = counts[genes,]
