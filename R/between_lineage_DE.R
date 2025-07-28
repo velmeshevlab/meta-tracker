@@ -1,4 +1,4 @@
-lineage_specific_genes <- function(test_lineage, cds, U = NULL, nknots = 6, dyn_FC_cutoff = 0){
+lineage_specific_genes_v2 <- function(test_lineage, cds, U = NULL, nknots = 6, dyn_FC_cutoff = 0){
     library(monocle3)
     library(igraph)
     library(ggplot2)
