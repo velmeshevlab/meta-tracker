@@ -194,7 +194,7 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     else{
       p_values_sel = as.matrix(p_values)
       }
-    if(nrow(p_values_sel) == 0{
+    if(nrow(p_values_sel) == 0){
       NULL
     }
     gene_names = rownames(p_values_sel)
