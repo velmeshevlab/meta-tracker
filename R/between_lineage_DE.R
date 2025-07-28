@@ -71,8 +71,11 @@ lineage_specific_genes <- function(test_lineage, cds, U = NULL, nknots = 6, para
     source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/select_lineages.R")
     lineages = names(cds@lineages)
     lineage_genes = get_lineage_genes(cds, test_lineage, U = U, nknots = nknots, parallel = parallel, BPPARAM = BPPARAM, p_cutoff = p_cutoff, FC_cutoff = FC_cutoff, lineages = lineages, dyn_FC_cutoff = dyn_FC_cutoff)
+    if(lineage_genes != NULL){
     lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
     lineage_genes
+    }
+    else{return(NULL)}
 }
 
 branch_specific_genes <- function(cds, test_lineages, name, U = NULL, nknots = 6, parallel = F, p_cutoff = 0.05, FC_cutoff = 0, dyn_FC_cutoff = 0){
