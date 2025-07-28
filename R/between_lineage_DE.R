@@ -194,8 +194,8 @@ get_lineage_genes <- function(cds, test_lineage, genes = NULL, U = NULL, nknots 
     else{
       p_values_sel = as.matrix(p_values)
       }
-    if(length(p_values_sel) == 0){
-      NULL
+    if(nrow(p_values_sel) == 0){
+      return(NULL)
     }
     gene_names = rownames(p_values_sel)
     FCs = calculate_dynamic_FC(cds, test_lineage, gene_names, lineages)
