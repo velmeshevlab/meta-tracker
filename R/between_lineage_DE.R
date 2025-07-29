@@ -177,7 +177,7 @@ lineage_specific_genes_par <- function(cds, cores, dyn_FC_cutoff = 0){
   lineages = names(cds@lineages)
   n.cores <- cores
   clust <- makeCluster(n.cores)
-  out <- parSapply(clust, names(cds@lineages), lineage_specific_genes, cds = cds_new, dyn_FC_cutoff = dyn_FC_cutoff, simplify = FALSE)
+  out <- parSapply(clust, names(cds@lineages), lineage_specific_genes_v2, cds = cds, simplify = FALSE, dyn_FC_cutoff = dyn_FC_cutoff)
   stopCluster(clust)
   cds@lineage_genes <- out
   cds 
