@@ -75,6 +75,7 @@ graph_mod_interactive <- function(cds,
   el <- as.data.frame(get.edgelist(g), stringsAsFactors = FALSE)
   colnames(el) <- c("from", "to")
   edges_df <- data.frame(
+    col = "black",
     from = el$from,
     to   = el$to,
     x    = nodes_df$x[match(el$from, nodes_df$node)],
@@ -94,6 +95,7 @@ graph_mod_interactive <- function(cds,
         actionButton("zoom_in",    label = NULL, icon = icon("search-plus")),
         actionButton("zoom_out",   label = NULL, icon = icon("search-minus")),
         actionButton("reset_zoom", "Reset Zoom"),
+        actionButton("cancel",     label = NULL, icon = icon("undo")),
         tags$span("Pan:"),
         actionButton("pan_left",   label = NULL, icon = icon("arrow-left")),
         actionButton("pan_up",     label = NULL, icon = icon("arrow-up")),
@@ -102,12 +104,7 @@ graph_mod_interactive <- function(cds,
         actionButton("done",       "Done")
       )
     ),
-    fluidRow(
-      column(
-        width = 12,
-        plotOutput("plot", click = "clickposition", hover = "hoverpos", width = "100%", height = "600px")
-      )
-    ),
+    fluidRow(column(width = 12, plotOutput("plot", click = "clickposition", hover = "hoverpos", width = "100%", height = "600px"))),
     fluidRow(column(width = 12, verbatimTextOutput("status")))
   )
   
@@ -118,51 +115,111 @@ graph_mod_interactive <- function(cds,
       stage   = 0,
       new_pt  = NULL,
       hovered = NULL,
+      selected_node = NULL,
       xlim    = range(nodes_df$x),
       ylim    = range(nodes_df$y)
     )
     
+    observeEvent(input$cancel, {
+      if (rv$stage == 1 && !is.null(rv$new_pt)) {
+        rv$new_pt <- NULL
+        rv$stage <- 0
+      } else if (rv$stage == 2 && !is.null(rv$selected_node)) {
+        rv$nodes$col[rv$nodes$node == rv$selected_node] <- "black"
+        rv$selected_node <- NULL
+        rv$stage <- 0
+      } else if (nrow(rv$edges) > nrow(edges_df)) {
+        last_edge <- tail(rv$edges, 1)
+        rv$edges <- rv$edges[-nrow(rv$edges), ]
+        new_node <- last_edge$from
+        if (!new_node %in% c(edges_df$from, edges_df$to)) {
+          rv$nodes <- rv$nodes[rv$nodes$node != new_node, ]
+        }
+        rv$stage <- 0
+        rv$new_pt <- NULL
+        rv$selected_node <- NULL
+      }
+    })
+    
+    observeEvent(input$done, {
+      stopApp(list(nodes = rv$nodes, edges = rv$edges))
+    })
+    
     output$status <- renderText({
       if (rv$stage == 0) {
-        "Step 1: Click to place new node."
-      } else {
-        "Step 2: Hover and click an existing node to connect."
+        "Step 1: Click to add node or select existing node to connect."
+      } else if (rv$stage == 1) {
+        "Step 2: Click an existing node to connect to new node."
+      } else if (rv$stage == 2) {
+        paste("Step 2: Click second node to connect with", rv$selected_node)
       }
     })
     
     observeEvent(input$clickposition, {
       pt <- input$clickposition
-      if (rv$stage == 0) {
-        rv$new_pt  <- c(pt$x, pt$y)
-        rv$stage   <- 1
-        rv$hovered <- NULL
-      } else {
-        targ <- if (!is.null(rv$hovered)) rv$hovered else {
-          d2 <- (rv$nodes$x - pt$x)^2 + (rv$nodes$y - pt$y)^2
-          rv$nodes$node[which.min(d2)]
+      # If a node is already highlighted (green), connect it to clicked node
+      if (!is.null(rv$hovered) && is.null(rv$new_pt)) {
+        if (rv$stage == 0) {
+          # Select the first node to connect from
+          rv$selected_node <- rv$hovered
+          rv$nodes$col[rv$nodes$node == rv$selected_node] <- "red"
+          rv$hovered <- NULL
+          rv$stage <- 2
+        } else if (rv$stage == 2) {
+          # Connect selected node to second hovered node
+          from <- rv$selected_node
+          to <- rv$hovered
+          if (from != to) {
+            rv$edges <- rbind(rv$edges, data.frame(
+              from = from, to = to,
+              x = rv$nodes$x[rv$nodes$node == from],
+              y = rv$nodes$y[rv$nodes$node == from],
+              xend = rv$nodes$x[rv$nodes$node == to],
+              yend = rv$nodes$y[rv$nodes$node == to],
+              col = "cyan",
+              stringsAsFactors = FALSE
+            ))
+          }
+          rv$nodes$col[rv$nodes$node == rv$selected_node] <- "black"
+          rv$stage <- 0
+          rv$selected_node <- NULL
+          rv$new_pt <- NULL
         }
-        max_node = max(as.numeric(str_split_i(rv$nodes$node, "_", 2)))
-        new_name <- paste0("Y_", max_node + 1)
-        rv$nodes <- rbind(rv$nodes, data.frame(x = rv$new_pt[1], y = rv$new_pt[2], node = new_name, col = "cyan", stringsAsFactors = FALSE))
-        rv$edges <- rbind(rv$edges, data.frame(from = new_name, to = targ,
-                                               x = rv$new_pt[1], y = rv$new_pt[2],
-                                               xend = rv$nodes$x[rv$nodes$node == targ],
-                                               yend = rv$nodes$y[rv$nodes$node == targ],
-                                               stringsAsFactors = FALSE))
-        rv$stage <- 0; rv$new_pt <- NULL; rv$hovered <- NULL
+      } else {
+        # If no node is hovered, add a new node and prepare to connect
+        if (rv$stage == 0) {
+          rv$new_pt  <- c(pt$x, pt$y)
+          rv$stage   <- 1
+        } else if (rv$stage == 1) {
+          d2 <- (rv$nodes$x - pt$x)^2 + (rv$nodes$y - pt$y)^2
+          targ <- rv$nodes$node[which.min(d2)]
+          max_node = max(as.numeric(str_split_i(rv$nodes$node, "_", 2)))
+          new_name <- paste0("Y_", max_node + 1)
+          rv$nodes <- rbind(rv$nodes, data.frame(x = rv$new_pt[1], y = rv$new_pt[2], node = new_name, col = "cyan", stringsAsFactors = FALSE))
+          rv$edges <- rbind(rv$edges, data.frame(from = new_name, to = targ,
+                                                 x = rv$new_pt[1], y = rv$new_pt[2],
+                                                 xend = rv$nodes$x[rv$nodes$node == targ],
+                                                 yend = rv$nodes$y[rv$nodes$node == targ],
+                                                 col = "cyan",
+                                                 stringsAsFactors = FALSE))
+          rv$stage   <- 0
+          rv$new_pt  <- NULL
+        }
       }
     })
     
     observeEvent(input$hoverpos, {
-      if (rv$stage == 1) {
-        hv <- input$hoverpos
-        d2 <- (rv$nodes$x - hv$x)^2 + (rv$nodes$y - hv$y)^2
-        i  <- which.min(d2)
-        if (sqrt(d2[i]) < diff(rv$xlim)*0.01 && rv$nodes$col[i] != "cyan") {
-          rv$hovered <- rv$nodes$node[i]
-        } else {
-          rv$hovered <- NULL
-        }
+      hv <- input$hoverpos
+      d2 <- (rv$nodes$x - hv$x)^2 + (rv$nodes$y - hv$y)^2
+      i  <- which.min(d2)
+      if (!is.null(rv$selected_node) && rv$nodes$node[i] == rv$selected_node) {
+        rv$hovered <- NULL  # prevent self-hover during connection
+      } else if (sqrt(d2[i]) < diff(rv$xlim)*0.01) {
+        rv$hovered <- rv$nodes$node[i]
+      } else if (sqrt(d2[i]) < diff(rv$xlim)*0.01) {
+        rv$hovered <- rv$nodes$node[i]
+      } else {
+        rv$hovered <- NULL
       }
     })
     
@@ -185,12 +242,13 @@ graph_mod_interactive <- function(cds,
             scale_color_gradient(low = adjustcolor("gray75", alpha.f = 0.2), high = "red")
           
           p <- p +
-            geom_segment(data = rv$edges, aes(x = x, y = y, xend = xend, yend = yend), size = segment_size, color = "black") +
+            geom_segment(data = rv$edges, aes(x = x, y = y, xend = xend, yend = yend), size = segment_size, color = rv$edges$col) +
             geom_point(data = rv$nodes, aes(x = x, y = y), size = node_size, color = rv$nodes$col)
           
           if (!is.null(rv$hovered)) {
             hrow <- rv$nodes[rv$nodes$node == rv$hovered, ]
-            p <- p + geom_point(data = hrow, aes(x = x, y = y), size = node_size * 1.5, color = "green")
+            color_highlight <- if (!is.null(rv$selected_node) && rv$hovered == rv$selected_node) "red" else "green"
+            p <- p + geom_point(data = hrow, aes(x = x, y = y), size = node_size * 1.5, color = color_highlight)
           }
           
           if (!is.null(rv$new_pt)) {
@@ -216,7 +274,7 @@ graph_mod_interactive <- function(cds,
             }
           
           p <- p +
-            geom_segment(data = rv$edges, aes(x = x, y = y, xend = xend, yend = yend), size = segment_size, color = "black") +
+            geom_segment(data = rv$edges, aes(x = x, y = y, xend = xend, yend = yend), size = segment_size, color = rv$edges$col) +
             geom_point(data = rv$nodes, aes(x = x, y = y), size = node_size, color = rv$nodes$col)
           
           if (!is.null(rv$hovered)) {
@@ -251,6 +309,7 @@ graph_mod_interactive <- function(cds,
   cds@principal_graph[[reduction_method]] <- graph_from_data_frame(new_edges[, c("from", "to")], vertices = new_nodes, directed = FALSE)
   
   return(cds)
+  
 }
 
 #' @export
