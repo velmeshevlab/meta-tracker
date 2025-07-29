@@ -37,7 +37,7 @@ compress_expression_v3_2 <- function(cds, lineage, N, cores = 1, ID = TRUE){
   #names(cds_subset) <- rowData(cds_subset)$gene_short_name
   exp = as.data.frame(as.matrix(exprs(cds_subset)))
   exp = (t(exp)) /  (pData(cds_subset)[, 'Size_Factor'])
-  exp = exp[rownames(cds),]
+  exp = exp[,rownames(cds)]
   pt <- cds_subset@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
   pt <- pt[rownames(exp)]
   pt <- as.data.frame(pt)
