@@ -49,7 +49,7 @@ within_lineage_DE <- function(lineage, #name of the lineage to analyze
   exp_95_max = rowMax(exp_95)
   expectation = cds@expectation[[lineage]]
   expectation = expectation[,rownames(cds)]
-  FC_factor = apply(expectation, 2, function(x) as.numeric(quantile(x, 0.95)))/exp_95_max
+  FC_factor = apply(expectation, 2, function(x) as.numeric(quantile(x, 0.95, na.rm= TRUE)))/exp_95_max
   scaled_FC = res$meanLogFC*FC_factor
   res$scaled_FC <- scaled_FC                      
   res_sig = res[res$pvalue<p & res$scaled_FC >= FC,]
