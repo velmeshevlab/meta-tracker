@@ -42,7 +42,7 @@ within_lineage_DE <- function(lineage, #name of the lineage to analyze
   for(lin in names(cds@lineages)){
     exp_lin = cds@expectation[[lin]]
     exp_lin = exp_lin[,rownames(res)]
-    exp_95_lin = apply(exp_lin, 2, function(x) as.numeric(quantile(x, 0.95)))
+    exp_95_lin = apply(exp_lin, 2, function(x) as.numeric(quantile(x, 0.95, na.rm= TRUE)))
     exp_95 = cbind(exp_95, exp_95_lin)
     }
   rownames(exp_95) <- rownames(res)
