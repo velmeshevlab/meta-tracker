@@ -46,7 +46,7 @@ within_lineage_DE <- function(lineage, #name of the lineage to analyze
     exp_95 = cbind(exp_95, exp_95_lin)
     }
   rownames(exp_95) <- rownames(res)
-  exp_95_max = rowMax(exp_95)
+  exp_95_max = apply(exp_95, 1, max, na.rm = TRUE)
   expectation = cds@expectation[[lineage]]
   expectation = expectation[,rownames(cds)]
   FC_factor = apply(expectation, 2, function(x) as.numeric(quantile(x, 0.95, na.rm= TRUE)))/exp_95_max
