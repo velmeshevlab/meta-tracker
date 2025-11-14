@@ -45,20 +45,27 @@ In this case, there are several issues:
 3. For some adult populations, the trajectory graph does not reach all the way to the terminal population. We correct this by extending the corresponding graph sections.
 ![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_add_nodes_age_term.png) **Modified graphs and developmental age, terminal branches extended**
 The interactive browser can be used to plot marker gene expression and metadata to aid in graph modification process.
-### 1.4. (optional) Connect nodes.
+Click "Done" after modification is completed.
+### 1.4.  Isolate trajectory paths along specific lineages. 
+An interactive browser is used to select the graphs corresponding to each lineage by clicking on the graph nodes starting from the root node. The algorythm will find the shortest path between consecutive nodes so not every node needs to be clicked. You can go back to the previous node selection if you are not satisfied with the selected path.
+The interactive browser can be used to plot marker gene expression and metadata to aid in graph modification process.
+Example image showing selection of the VIP interneuron lineage:
+```
+  cds_new = graph_selection_interactive(cds_new, "VIP")
+```
+![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_sel_VIP.png) **Selected VIP graph, selected graph is in red, clicked nodes are in yellow**
 
+This process is repeated for all lineages.
 ```
-  cds = connect_nodes(cds, "Y_288", "Y_82", add_node = T)
-```
-### 1.5.  Isolate trajectory paths along specific lineages. 
-You need to specify the metatracker object, start and end of the trajectory as integer node numbers, name you want to assign to the trajectory, as well as an optional parameter of nodes to include in the trajectory (in case you want your trajectory to pass through specific points).
-For instance, here we name our trajectory OL (for oligodendrocytes), specify that it starts from node 495 and ends in node 46 and specify that the trajectory needs to pass through nodes 277 and 721.
-```
-  lineage = "OL"
-  start = 495
-  end = 46
-  inc.node = c("Y_277", "Y_721")
-  cds<- isolate_graph(cds, start, end, lineage, include_nodes = inc.node)
+  cds_new = graph_selection_interactive(cds_new, "SST")
+  cds_new = graph_selection_interactive(cds_new, "SST_RELN")
+  cds_new = graph_selection_interactive(cds_new, "PV")
+  cds_new = graph_selection_interactive(cds_new, "PV_MME")
+  cds_new = graph_selection_interactive(cds_new, "CALB2")
+  cds_new = graph_selection_interactive(cds_new, "CCK")
+  cds_new = graph_selection_interactive(cds_new, "RELN")
+  cds_new = graph_selection_interactive(cds_new, "LAMP5")
+  cds_new = graph_selection_interactive(cds_new, "NOS")
 ```
 ### 1.6. Select cells along the trajectory. 
 Optionally, you can specify clusters to consider (if you want to make sure to not include cells from clusters you know belong to a different fate), adjust the radius around the node to select cells in (N) and enable multithreading with cl parameter. You can first plot clusters using monocle3's plot_cells function.
