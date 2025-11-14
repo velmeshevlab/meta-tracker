@@ -79,7 +79,7 @@ You can specify clusters to consider to make sure not to include cells from clus
   sel.cluster = c("5", "7", "10", "19", "8", "16", "0", "15", "20", "17", "2", "1", "9")
   cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
 ```
-Repeat trajectory and cell selection for all lineages you identified in the dataset.
+Do a sanity check by plotting the selected cells for one lineage and adjust N if needed.
 ```
   cds <- isolate_lineage(cds, "VIP", sel_clusters = sel.cluster, cl = 16, N = 0.3)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "6")
