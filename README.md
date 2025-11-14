@@ -39,10 +39,11 @@ We can use an interactive browser to modify the graph. You can click on an exist
  ```
 In this case, there are several issues:
 1. A cluster of newborn MGE-derived interneurons expressing canonical transcription factor NKX2-1 is omitted by the trajectories. We add a new section of the graph (in cyan, circled in red) to include this important transient population.
-![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_add_nodes_NKX2-1.png) **Modified graphs and developmental age**
+![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_add_nodes_NKX2-1.png) **Modified graphs and NKX2-1 expression**
 2. Clusters of mature interneurons from adult samples are connected, which is not biologically meaningful since mature interneurons do not transdifferentiate from one type to another. To correct this issue, we add graph sections connecting earlier-stage cell populations to terminal populations.
-![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_add_nodes_age_inter.png) **Modified graphs and NKX2-1 expression**
-4. For some adult populations, the trajectory graph does not reach all the way to the terminal population. We correct this by extending the corresponding graph sections.
+![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_add_nodes_age_inter.png) **Modified graphs and developmental age, missing connecting branches added**
+3. For some adult populations, the trajectory graph does not reach all the way to the terminal population. We correct this by extending the corresponding graph sections.
+![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_add_nodes_age_term.png) **Modified graphs and developmental age, terminal branches extended**
 The interactive browser can be used to plot marker gene expression and metadata to aid in graph modification process.
 ### 1.4. (optional) Connect nodes.
 
