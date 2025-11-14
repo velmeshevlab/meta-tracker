@@ -81,21 +81,29 @@ You can specify clusters to consider to make sure not to include cells from clus
 ```
 Repeat trajectory and cell selection for all lineages you identified in the dataset.
 ```
-  #protoplasmic astrocytes
-  lineage = "AST_PP"
-  start = 495
-  end = 865
-  cds<- isolate_graph(cds, start, end, lineage)
-  sel.cluster = c("5", "7", "18", "14", "4", "11", "6", "3")
-  cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
-
-  #fibrous astrocytes
-  lineage = "AST_FB"
-  start = 495
-  end = 994
-  cds<- isolate_graph(cds, start, end, lineage)
-  sel.cluster = c("5", "7", "18", "14", "13", "12")
-  cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
+  cds <- isolate_lineage(cds, "VIP", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "6")
+```
+Repeat for the rest of the trajectories.
+```
+  sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "11")
+  cds <- isolate_lineage(cds, "SST", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "10")
+  cds <- isolate_lineage(cds, "SST_RELN", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "7")
+  cds <- isolate_lineage(cds, "PV", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "9", "14", "22")
+  cds <- isolate_lineage(cds, "PV_MME", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "29")
+  cds <- isolate_lineage(cds, "CALB2", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "28", "27")
+  cds <- isolate_lineage(cds, "CCK", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "12")
+  cds <- isolate_lineage(cds, "RELN", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "26")
+  cds <- isolate_lineage(cds, "LAMP5", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "20")
+  cds <- isolate_lineage(cds, "PV", sel_clusters = sel.cluster, cl = 16, N = 0.3)
 ```
 ### 1.7. Combine lineages and plot the final trajectories.
 ```
