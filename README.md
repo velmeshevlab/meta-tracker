@@ -41,7 +41,7 @@ The interactive browser can be used to plot marker gene expression and metadata 
 ```
   cds_new = graph_mod_interactive(cds)
  ```
-![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_add_nodes_age.png) "Modified graphs and developmental age"
+![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_add_nodes_age.png) **Modified graphs and developmental age**
 ### 1.4. (optional) Connect nodes.
 
 ```
