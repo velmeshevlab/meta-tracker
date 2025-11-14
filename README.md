@@ -79,38 +79,40 @@ You can specify clusters to consider to make sure not to include cells from clus
   sel.cluster = c("5", "7", "10", "19", "8", "16", "0", "15", "20", "17", "2", "1", "9")
   cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
 ```
-Do a sanity check by plotting the selected cells for one lineage and adjust N if needed.
+Do a sanity check by running cell selection for one lineage and plotting the selected cells. Adjust N if needed.
 ```
-  cds <- isolate_lineage(cds, "VIP", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  cds_new <- isolate_lineage(cds_new, "VIP", sel_clusters = sel.cluster, cl = 16, N = 0.3)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "6")
+
+  max_UMAP_1 = max(reducedDims(cds_new)$"UMAP"[,1])
+  min_UMAP_1 = min(reducedDims(cds_new)$"UMAP"[,1])
+  max_UMAP_2 = max(reducedDims(cds_new)$"UMAP"[,2])
+  min_UMAP_2 = min(reducedDims(cds_new)$"UMAP"[,2])
+  cds_sub = get_lineage_object(cds_new, "VIP")
+  umap_theme <- theme(plot.title = element_blank(), legend.position="none", panel.border = element_blank(), axis.text.x = element_text(size=16), axis.text.y = element_text(size=16), axis.title.x = element_text(size=18, face="bold"), axis.title.y = element_text(size=18, face="bold"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"), panel.background = element_blank(), legend.title=element_text(size=16))
+  plot_cells(cds_sub, color_cells_by = "pseudotime", label_cell_groups=F, label_leaves=FALSE, label_branch_points=FALSE, graph_label_size=1.5, cell_size = 0.1, trajectory_graph_color = "cyan",   trajectory_graph_segment_size = 1.5) + scale_x_continuous(limits = c(min_UMAP_1, max_UMAP_1)) + scale_y_continuous(limits = c(min_UMAP_2, max_UMAP_2)) + theme(legend.position = "none")
 ```
+![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/VIP_sel_cells.png)
 Repeat for the rest of the trajectories.
 ```
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "11")
-  cds <- isolate_lineage(cds, "SST", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  cds_new <- isolate_lineage(cds_new, "SST", sel_clusters = sel.cluster, cl = 16, N = 0.3)
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "10")
-  cds <- isolate_lineage(cds, "SST_RELN", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  cds_new <- isolate_lineage(cds_new, "SST_RELN", sel_clusters = sel.cluster, cl = 16, N = 0.3)
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "7")
-  cds <- isolate_lineage(cds, "PV", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  cds_new <- isolate_lineage(cds_new, "PV", sel_clusters = sel.cluster, cl = 16, N = 0.3)
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "9", "14", "22")
-  cds <- isolate_lineage(cds, "PV_MME", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  cds_new <- isolate_lineage(cds_new, "PV_MME", sel_clusters = sel.cluster, cl = 16, N = 0.3)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "29")
-  cds <- isolate_lineage(cds, "CALB2", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  cds_new <- isolate_lineage(cds_new, "CALB2", sel_clusters = sel.cluster, cl = 16, N = 0.3)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "28", "27")
-  cds <- isolate_lineage(cds, "CCK", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  cds_new <- isolate_lineage(cds_new, "CCK", sel_clusters = sel.cluster, cl = 16, N = 0.3)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "12")
-  cds <- isolate_lineage(cds, "RELN", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  cds_new <- isolate_lineage(cds_new, "RELN", sel_clusters = sel.cluster, cl = 16, N = 0.3)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "26")
-  cds <- isolate_lineage(cds, "LAMP5", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  cds_new <- isolate_lineage(cds_new, "LAMP5", sel_clusters = sel.cluster, cl = 16, N = 0.3)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "20")
-  cds <- isolate_lineage(cds, "PV", sel_clusters = sel.cluster, cl = 16, N = 0.3)
-```
-### 1.7. Combine lineages and plot the final trajectories.
-```
-  cds_new = combine_lineages(cds, 495)
-  #calculate pseudotime
-  cds_new = order_cells(cds_new, root_pr_nodes = c("Y_495"))
-  plot_cells(cds_new, color_cells_by = "pseudotime", label_cell_groups=FALSE, label_leaves=FALSE, label_roots = FALSE, label_branch_points=FALSE, graph_label_size=1, cell_size = 0.5, trajectory_graph_color = "cyan", trajectory_graph_segment_size = 1)
+  cds_new <- isolate_lineage(cds_new, "PV", sel_clusters = sel.cluster, cl = 16, N = 0.3)
 ```
 ## Part two: compressing trajectories and identifying lineage-specific genes
 Now, we want to identify and visualize lineage-specific genes. We do this by identifying dynamically expressed genes in each trajectory and comparing trajectories to find lineage-specific genes.
