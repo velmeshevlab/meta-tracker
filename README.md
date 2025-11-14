@@ -38,7 +38,8 @@ In this case, there are several issues:
 2. Clusters of mature interneurons from adult samples are connected, which is not biologically meaningful since mature interneurons do not transdifferentiate from one type to another. To correct this issue, we add graph sections connecting earlier-stage cell populations to terminal populations.
 3. For some adult populations, the trajectory graph does not reach all the way to the terminal population. We correct this by extending the corresponding graph sections.
 ```
-  node_plot(cds)
+  cds_new = graph_mod_interactive(cds)
+  ![alt text]([https://github.com/adam-p/markdown-here/raw/master/src/common/images/icon48.png](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_add_nodes_age.png) "Logo Title Text 1")
  ```
 ### 1.4. (optional) Connect nodes.
 
