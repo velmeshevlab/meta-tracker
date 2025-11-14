@@ -71,7 +71,8 @@ You can thenplot the final graph showing all lineages:
 ```
 plot_combined_graph(cds_new, color_cells_by = "age_reorder") + umap_theme + theme(legend.position = "right") + guides(colour = guide_legend(override.aes = list(size=2)))
 ```
-![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_clean_trajectories.png) **Clean trajectories**
+![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/IN_clean_trajectories.png)
+**Clean trajectories**
 ### 1.5. Select cells along the trajectory. 
 You can specify clusters to consider to make sure not to include cells from clusters you know belong to a different fate, adjust the radius around the node to select cells in (N) and enable multithreading with cl parameter. You can first plot clusters using monocle3's plot_cells function.
 ```
