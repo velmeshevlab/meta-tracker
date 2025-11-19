@@ -118,19 +118,23 @@ Repeat for the rest of the trajectories.
 Now, we want to identify and visualize lineage-specific genes. We do this by identifying dynamically expressed genes in each trajectory and comparing trajectories to find lineage-specific genes.
 
 ### 2.1. First step is to compress lineages along pseudotime to speed up the analysis for large datasets.
-Here, we make 500 meta-cells along each trajectory. We use parallel processing to speed up this step. Meta-cells are only made from the same biological sample.
+First, we filter out low expressed genes. Any gene expressed in at least 1% of selected cells of at least one trajectory will be kept.
 ```
-  #filter genes that are expressed in at least 10% of the cells
-  factor = 0.1
-  data = counts(cds_new)
-  rows=rownames(data)[rowSums(data> 0) > factor*ncol(data)]
-  cds_new = cds_new[rows]
-  #compress lineages by generating sample-wise metacells
-  cds_new = compress_lineage_v3(cds_new, "OL", N = 500, cores = 16)
-  cds_new = compress_lineage_v3(cds_new, "AST_FB", N = 500, cores = 16)
-  cds_new = compress_lineage_v3(cds_new, "AST_PP", N = 500, cores = 16)
-  #plot known lineage-specific genes to make sure everything worked
-  plot_multiple(cds_new, "PLP1", c("OL", "AST_PP", "AST_FB"), text.size = 28, plot.title.size = 48, legend.key.size = 1, legend.text.size = 14) + theme(legend.position = "none")
+  expressed_genes = filter_by_expression(cds_new)
+  cds_F = cds_new[expressed_genes,]
+```
+Here, we make 500 meta-cells along each trajectory. We use parallel processing to speed up this step. In this case, we don't care if the cells are from the same biological sample or now, hence 
+```
+cds_F = compress_lineage_v3_2(cds_F, "SST", N = 500, cores = 16, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "SST_RELN", N = 500, cores = 16, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "PV", N = 500, cores = 16, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "PV_MME", N = 500, cores = 16, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "VIP", N = 500, cores = 16, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "CALB2", N = 500, cores = 16, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "CCK", N = 500, cores = 16, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "RELN", N = 500, cores = 16, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "LAMP5", N = 500, cores = 16, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 500, cores = 16, ID = FALSE)
 ```
 ### 2.2. Now, we apply functions from the tradeSeq package to the compressed metacells to identify dynamically expressed genes in each lineage.
 ```
