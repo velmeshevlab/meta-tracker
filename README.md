@@ -125,16 +125,16 @@ First, we filter out low expressed genes. Any gene expressed in at least 1% of s
 ```
 Here, we make 500 meta-cells along each trajectory. We use parallel processing to speed up this step. In this case, we don't care if the cells are from the same biological sample or now, hence 
 ```
-cds_F = compress_lineage_v3_2(cds_F, "SST", N = 500, cores = 16, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "SST_RELN", N = 500, cores = 16, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "PV", N = 500, cores = 16, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "PV_MME", N = 500, cores = 16, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "VIP", N = 500, cores = 16, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "CALB2", N = 500, cores = 16, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "CCK", N = 500, cores = 16, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "RELN", N = 500, cores = 16, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "LAMP5", N = 500, cores = 16, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 500, cores = 16, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "SST", N = 500, cores = 12, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "SST_RELN", N = 500, cores = 12, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "PV", N = 500, cores = 12, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "PV_MME", N = 500, cores = 12, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "VIP", N = 500, cores = 12, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "CALB2", N = 500, cores = 12, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "CCK", N = 500, cores = 12, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "RELN", N = 500, cores = 12, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "LAMP5", N = 500, cores = 12, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 500, cores = 12, ID = FALSE)
 ```
 ### 2.2. Now, we apply functions from the tradeSeq package to the compressed metacells to identify dynamically expressed genes in each lineage.
 ```
