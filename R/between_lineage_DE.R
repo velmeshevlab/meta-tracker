@@ -31,6 +31,7 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, U = NULL, nknots = 6, d
 }
 
 get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, lineages = NULL, dyn_FC_cutoff = 0){
+  lineages = names(cds@lineages)
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
   all_metacells = c()
   lineage_list = list()
