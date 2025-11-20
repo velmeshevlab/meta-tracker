@@ -141,18 +141,28 @@ cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 500, cores = 24, ID = FALSE)
 ```
   cds_F <- within_lineage_DE_par(cds = cds_F, cores = 24)
 ```
-### 2.3. Fianlly, we can identify lineage-specific genes. We do it by comparing each lineage to all other lineages and calculating meta p value and average fold change.
+### 2.3. Next, we can identify lineage-specific genes. We do it by comparing each lineage to all other lineages and calculating meta p value and average fold change.
 ###      We only keep the genes that have significant p values in all lineage comparisons and are also dynamically expressed.
 ```
-  #optionally, use multicore
-  multicoreParam <- MulticoreParam(workers = 8)
-  cds_new <- lineage_specific_genes(cds = cds_new, test_lineage = "OL", parallel = T)
-  cds_new <- lineage_specific_genes(cds = cds_new, test_lineage = "AST_PP", parallel = T)
-  cds_new <- lineage_specific_genes(cds = cds_new, test_lineage = "AST_FB", parallel = T)
+  cds_F <- lineage_specific_genes_par(cds = cds_F, cores = 8)
+  write_lin_genes <- function(lineage, cds)
+  {
+  lin_genes = format_lineage_specific_genes(lineage, cds)
+  write.table(lin_genes, file = paste0(lineage, "_lin_genes.tsv"), sep = "\t", quote = F)
+  }
+  lineages = names(cds_F@lineages)
+  sapply(lineages, write_lin_genes, cds = cds_F)
 ```
 ### 2.4. For most lineages, we don't want to only find genes specific to terminal cell types but also shared between related lineages (in this case, protoplasmic and fibrous astrocytes).
 ```
-  #optionally, use multicore
-  multicoreParam <- MulticoreParam(workers = 8)
-  cds_new <- branch_specific_genes(cds = cds_new, test_lineages = c("AST_PP", "AST_FB"), name = "AST", parallel = T)
+  write_branch_genes <- function(index, cds, branch_number, branches)
+  {
+  branch_point = branches[[index]]
+  branch_genes = format_branch_specific_genes(branch_point, cds, branch_number = branch_number)
+  branch_point_name = names(branch_point)[branch_number]
+  write.table(branch_genes, file = paste0(names(branches)[index], "_B", branch_number, "_branch_genes.tsv"), sep = "\t", quote = F)
+  }
+  branches = find_branches(cds_F)
+  lapply(1:length(branches), write_branch_genes, cds = cds_F, branch_number = 1, branches = branches)
+  lapply(1:length(branches), write_branch_genes, cds = cds_F, branch_number = 2, branches = branches)
 ```
