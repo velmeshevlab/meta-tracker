@@ -137,13 +137,9 @@ cds_F = compress_lineage_v3_2(cds_F, "RELN", N = 500, cores = 24, ID = FALSE)
 cds_F = compress_lineage_v3_2(cds_F, "LAMP5", N = 500, cores = 24, ID = FALSE)
 cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 500, cores = 24, ID = FALSE)
 ```
-### 2.2. Now, we apply functions from the tradeSeq package to the compressed metacells to identify dynamically expressed genes in each lineage.
+### 2.2. Now, we find genes that are dynamically expressed in each lineage. Takes ~20 min for 10 lineages (275,000 cells and 12,000 genes).
 ```
-  #optionally, use multicore
-  multicoreParam <- MulticoreParam(workers = 8)
-  cds_new <- within_lineage_DE(cds = cds_new, lineage = "OL", parallel = T)
-  cds_new <- within_lineage_DE(cds = cds_new, lineage = "AST_PP", parallel = T)
-  cds_new <- within_lineage_DE(cds = cds_new, lineage = "AST_FB", parallel = T)
+  cds_F <- within_lineage_DE_par(cds = cds_F, cores = 24)
 ```
 ### 2.3. Fianlly, we can identify lineage-specific genes. We do it by comparing each lineage to all other lineages and calculating meta p value and average fold change.
 ###      We only keep the genes that have significant p values in all lineage comparisons and are also dynamically expressed.
