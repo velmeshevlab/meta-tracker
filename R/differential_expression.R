@@ -17,7 +17,8 @@ within_lineage_DE <- function(lineage, #name of the lineage to analyze
                           contrast_type = "end",
                           p = 0.05, #p value threshold
                           FC = 0, #fold change value threshold
-                          parallel = F
+                          parallel = F,
+                          BPPARAM = F
                           ){
   print(paste0("Testing lineage ", lineage))
   d =cds@expression[[lineage]]
