@@ -37,7 +37,7 @@ within_lineage_DE <- function(lineage, #name of the lineage to analyze
   #statLineage = statLineage[names(p_value),]
   #final_res = cbind(statLineage, p_value)
   #final_res= final_res[order(final_res[,1], decreasing = T),]
-  gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt, parallel = parallel)
+  gamList<-tradeSeq::fitGAM(counts=counts,conditions=conditions,nknots=nknots,pseudotime=pseudotime,cellWeights=cell_wt, parallel = parallel, BPPARAM =BPPARAM)
   res = associationTest(gamList, contrastType = contrast_type)
   exp_95 = matrix(,nrow = nrow(res),ncol = 0)
   for(lin in names(cds@lineages)){
