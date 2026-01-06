@@ -3,7 +3,7 @@
 
 within_lineage_DE_par <- function(cds, parallel = F, BPPARAM = BPPARAM){
 lineages = names(cds@lineages)
-out <- apply(lineages, within_lineage_DE, cds = cds, parallel = T, BPPARAM = BPPARAM)
+out <- lapply(lineages, within_lineage_DE, cds = cds, parallel = T, BPPARAM = BPPARAM)
 names(out) <- lineages
 cds@dynamic_genes <- out
 cds
