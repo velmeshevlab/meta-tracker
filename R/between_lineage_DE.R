@@ -176,7 +176,7 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
 
 lineage_specific_genes_par <- function(cds, dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
   lineages = names(cds@lineages)
-  out <- parSapply(clust, names(cds@lineages), lineage_specific_genes_v2, cds = cds, simplify = FALSE, dyn_FC_cutoff = dyn_FC_cutoff, parallel = parallel, BPPARAM = BPPARAM)
+  out <- sapply(clust, names(cds@lineages), lineage_specific_genes_v2, cds = cds, simplify = FALSE, dyn_FC_cutoff = dyn_FC_cutoff, parallel = parallel, BPPARAM = BPPARAM)
   stopCluster(clust)
   cds@lineage_genes <- out
   cds 
