@@ -1,4 +1,5 @@
 lineage_specific_genes_v2 <- function(test_lineage, cds, U = NULL, nknots = 6, dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
+    print(test_lineage)
     library(monocle3)
     library(igraph)
     library(ggplot2)
