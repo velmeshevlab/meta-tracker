@@ -1,4 +1,4 @@
-lineage_specific_genes_v2 <- function(test_lineage, cds, U = NULL, nknots = 6, dyn_FC_cutoff = 0){
+lineage_specific_genes_v2 <- function(test_lineage, cds, U = NULL, nknots = 6, dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
     library(monocle3)
     library(igraph)
     library(ggplot2)
@@ -22,7 +22,7 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, U = NULL, nknots = 6, d
     source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/plotting.R")
     source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/select_lineages.R")
     lineages = names(cds@lineages)
-    lineage_genes = get_lineage_genes_v2(cds, test_lineage, U = U, nknots = nknots, lineages = lineages, dyn_FC_cutoff = dyn_FC_cutoff)
+    lineage_genes = get_lineage_genes_v2(cds, test_lineage, U = U, nknots = nknots, lineages = lineages, dyn_FC_cutoff = dyn_FC_cutoff, parallel = parallel, BPPARAM = BPPARAM)
     if(length(lineage_genes) > 0){
     lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
     lineage_genes
@@ -30,7 +30,7 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, U = NULL, nknots = 6, d
     else{return(NULL)}
 }
 
-get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, lineages = NULL, dyn_FC_cutoff = 0){
+get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, lineages = NULL, dyn_FC_cutoff = 0, BPPARAM = F){
   lineages = names(cds@lineages)
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
   all_metacells = c()
@@ -75,7 +75,7 @@ get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nkno
   }
   colnames(pseudotime) <- lineages
   rownames(pseudotime) <- all_metacells
-  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots)
+  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots, BPPARAM = BPPARAM)
   res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
   if(length(lineages) > 2){
     index = which(test_lineage == lineages)
@@ -174,11 +174,9 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
   FCs
 }
 
-lineage_specific_genes_par <- function(cds, cores, dyn_FC_cutoff = 0){
+lineage_specific_genes_par <- function(cds, dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
   lineages = names(cds@lineages)
-  n.cores <- cores
-  clust <- makeCluster(n.cores)
-  out <- parSapply(clust, names(cds@lineages), lineage_specific_genes_v2, cds = cds, simplify = FALSE, dyn_FC_cutoff = dyn_FC_cutoff)
+  out <- parSapply(clust, names(cds@lineages), lineage_specific_genes_v2, cds = cds, simplify = FALSE, dyn_FC_cutoff = dyn_FC_cutoff, parallel = parallel, BPPARAM = BPPARAM)
   stopCluster(clust)
   cds@lineage_genes <- out
   cds 
