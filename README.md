@@ -137,7 +137,7 @@ cds_F = compress_lineage_v3_2(cds_F, "RELN", N = 500, cores = 24, ID = FALSE)
 cds_F = compress_lineage_v3_2(cds_F, "LAMP5", N = 500, cores = 24, ID = FALSE)
 cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 500, cores = 24, ID = FALSE)
 ```
-### 2.2. Now, we find genes that are dynamically expressed in each lineage. Takes ~20 min for 10 lineages (275,000 cells and 12,000 genes).
+### 2.2. Now, we find genes that are dynamically expressed in each lineage. Takes ~15 min for 10 lineages (275,000 cells and 12,000 genes).
 ```
   BPPARAM <- BiocParallel::MulticoreParam(workers = 12)
   BiocParallel::register(BPPARAM)
