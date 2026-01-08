@@ -146,7 +146,7 @@ cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 500, cores = 24, ID = FALSE)
 ### 2.3. Next, we can identify lineage-specific genes. We do it by comparing each lineage to all other lineages and calculating meta p value and average fold change.
 ###      We only keep the genes that have significant p values in all lineage comparisons and are also dynamically expressed.
 ```
-  BPPARAM <- BiocParallel::MulticoreParam(workers = 24)
+  BPPARAM <- BiocParallel::MulticoreParam(workers = 12)
   BiocParallel::register(BPPARAM)
   cds_F <- lineage_specific_genes_par(cds = cds_F, parallel = T, BPPARAM = BPPARAM)
   write_lin_genes <- function(lineage, cds)
