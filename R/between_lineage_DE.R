@@ -1,3 +1,119 @@
+find_start_point <-function(graph_list){
+  start_ends = c()
+  for(graph_name in names(graph_list)){
+    graph = graph_list[[graph_name]]
+    start_end = V(graph)[degree(graph) == 1]$name
+    start_ends = c(start_ends, start_end)
+  }
+  start = names(sort(table(start_ends),decreasing=TRUE)[1])
+  start
+}
+
+get_subgraph_opposite_to_start <- function(graph, branch_vertex, start) {
+    # Remove the branch vertex
+    g_split <- delete_vertices(graph, branch_vertex)
+    # Get connected components
+    comps <- components(g_split)
+    # Identify component containing `start`
+    start_component <- comps$membership[start]
+    # Get vertices not in the same component as `start`
+    other_vertices <- names(comps$membership[comps$membership != start_component])
+    # Return subgraph of those vertices
+    subgraph = induced_subgraph(g_split, vids = other_vertices)
+    subgraph
+}
+
+get_branch_points <- function(graph_list){
+  combined_graph <- graph.empty(directed = FALSE)
+  for (g in graph_list) {
+    combined_graph <- igraph::union(combined_graph, g)
+  }
+  combined_graph <- simplify(combined_graph)
+  branch_points <- V(combined_graph)[degree(combined_graph) >= 3]
+  branch_points = branch_points$name
+  branch_points
+}
+
+group_graphs_by_vertex_overlap <- function(graph_list) {
+  graph_names <- names(graph_list)
+  
+  if (is.null(graph_names)) {
+    graph_names <- paste0("graph_", seq_along(graph_list))
+    names(graph_list) <- graph_names
+  }
+  
+  # Ensure all graphs have vertex names
+  for (i in seq_along(graph_list)) {
+    g <- graph_list[[i]]
+    if (is.null(V(g)$name)) {
+      V(g)$name <- as.character(V(g))
+    }
+  }
+  
+  # Prepare vertex sets
+  vertex_sets <- lapply(graph_list, function(g) V(g)$name)
+  
+  # Build overlap matrix
+  n <- length(graph_list)
+  overlap_matrix <- matrix(0, nrow = n, ncol = n, dimnames = list(graph_names, graph_names))
+  
+  for (i in 1:(n - 1)) {
+    for (j in (i + 1):n) {
+      if (length(intersect(vertex_sets[[i]], vertex_sets[[j]])) > 0) {
+        overlap_matrix[i, j] <- 1
+        overlap_matrix[j, i] <- 1
+      }
+    }
+  }
+  
+  # Create graph of overlaps and find components
+  overlap_graph <- graph_from_adjacency_matrix(overlap_matrix, mode = "undirected", diag = FALSE)
+  comps <- components(overlap_graph)
+  
+  # Group graph names by component
+  grouped_graphs <- split(names(comps$membership), comps$membership)
+  
+  return(grouped_graphs)
+}
+
+find_branches <- function(cds){
+graph_list = cds@graphs
+start = find_start_point(graph_list)
+branch_points = get_branch_points(graph_list)
+combined_graph <- graph.empty(directed = FALSE)
+for (g in graph_list) {
+  combined_graph <- igraph::union(combined_graph, g)
+}
+combined_graph <- simplify(combined_graph)
+distances <- sapply(branch_points, function(bp) {
+  sp <- suppressWarnings(shortest.paths(combined_graph, v = start, to = bp))
+  return(sp[1, 1])
+})
+branch_points <- branch_points[order(distances)]
+branch_list_full = list()
+for(j in 1:length(branch_points)){
+  branch_vertex = branch_points[j]
+  graph_list_f = list()
+  i <- 1
+  for(graph in graph_list){
+    if(branch_vertex %in% V(graph)$name)
+      graph_list_f[[names(graph_list)[i]]] <- graph
+      i <- i + 1
+  }
+  graph_list_trunc = lapply(graph_list_f, get_subgraph_opposite_to_start, start = start, branch_vertex = branch_vertex)
+  branch_list = group_graphs_by_vertex_overlap(graph_list_trunc)
+  names(branch_list) <- c(paste0("BP", j, "_B1"), paste0("BP", j, "_B2"))
+  branch_list_full[[branch_vertex]] <- branch_list
+}
+names = c()
+for(i in 1:length(branch_list_full)){
+  names = c(names, paste0("BP_", i))
+  i <- i + 1
+}
+names(branch_list_full) <- names
+branch_list_full
+}
+                        
 format_branch_specific_genes <- function(branch_point, cds, branch_number = 1, p_cutoff = 0.05, FC_cutoff = 0.5, dynamic_FC_cutoff = 0.2, p_adjust = "BH"){
   lineages = names(cds@lineages)
   branches_1 = branch_point[[branch_number]]
