@@ -224,6 +224,7 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, U = NULL, nknots = 6, d
     print(test_lineage)
     lineages = names(cds@lineages)
     lineage_genes = get_lineage_genes_v2(cds, test_lineage, U = U, nknots = nknots, lineages = lineages, dyn_FC_cutoff = dyn_FC_cutoff, parallel = parallel, BPPARAM = BPPARAM)
+    gc()
     if(length(lineage_genes) > 0){
     lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
     lineage_genes
