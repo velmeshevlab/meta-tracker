@@ -220,53 +220,15 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cuto
   lineage_spec_genes
 }
 
-lineage_specific_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, lineages = names(cds@lineages), dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
-  print(test_lineage)
-  lineages = names(cds@lineages)
-  counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
-  all_metacells = c()
-  lineage_list = list()
-  pt_list = list()
-  i = 1
-  for(lineage in lineages){
-    metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]])))
-    d = cds@expression[[lineage]]
-    d = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric)))
-    colnames(d) <- metacells
-    counts <- cbind(counts, d)
-    all_metacells <- c(all_metacells, metacells)
-    lineage_list[[i]] <- metacells
-    pt = cds@pseudotime[[lineage]][,1]
-    names(pt) <- metacells
-    pt_list[[i]] <- pt
-    i <- i + 1
-  }
+lineage_specific_genes_v2 <- function(cds, test_lineage, gamlist = gamlist, genes = NULL, U = NULL, nknots = 6, lineages = names(cds@lineages), dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
   dynamic = cds@dynamic_genes[[test_lineage]]
   dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dyn_FC_cutoff,])
   if(length(genes) == 0){
-    counts = counts[dynamic_genes ,]
+    gamlist = gamlist[dynamic_genes ,]
   }
   else{
-    counts = counts[genes,]
+      gamlist = gamlist[genes,]
   }
-  print(paste0("Testing ", nrow(counts), " genes"))
-  names(lineage_list) <- lineages
-  names(pt_list) <- lineages
-  cellWeights <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
-  rownames(cellWeights) <- all_metacells
-  colnames(cellWeights) <- lineages
-  for (list_name in names(lineage_list)) {
-    cellWeights[, list_name] <- as.numeric(all_metacells %in% lineage_list[[list_name]])
-  }
-  pseudotime <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
-  rownames(pseudotime) <- all_metacells
-  colnames(pseudotime) <- lineages
-  for (list_name in names(pt_list)) {
-    pseudotime[names(pt_list[[list_name]]), list_name] <- pt_list[[list_name]]
-  }
-  colnames(pseudotime) <- lineages
-  rownames(pseudotime) <- all_metacells
-  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots, parallel = parallel, BPPARAM = BPPARAM)
   res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
   if(length(lineages) > 2){
     index = which(test_lineage == lineages)
@@ -371,8 +333,45 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
 
 lineage_specific_genes_par <- function(cds, dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
   lineages = names(cds@lineages)
-  
-  out <- sapply(names(cds@lineages), lineage_specific_genes_v2, cds = cds, simplify = FALSE, dyn_FC_cutoff = dyn_FC_cutoff, parallel = parallel, BPPARAM = BPPARAM)
+  print(test_lineage)
+  lineages = names(cds@lineages)
+  counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
+  all_metacells = c()
+  lineage_list = list()
+  pt_list = list()
+  i = 1
+  for(lineage in lineages){
+    metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]])))
+    d = cds@expression[[lineage]]
+    d = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric)))
+    colnames(d) <- metacells
+    counts <- cbind(counts, d)
+    all_metacells <- c(all_metacells, metacells)
+    lineage_list[[i]] <- metacells
+    pt = cds@pseudotime[[lineage]][,1]
+    names(pt) <- metacells
+    pt_list[[i]] <- pt
+    i <- i + 1
+  }
+  print(paste0("Testing ", nrow(counts), " genes"))
+  names(lineage_list) <- lineages
+  names(pt_list) <- lineages
+  cellWeights <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
+  rownames(cellWeights) <- all_metacells
+  colnames(cellWeights) <- lineages
+  for (list_name in names(lineage_list)) {
+    cellWeights[, list_name] <- as.numeric(all_metacells %in% lineage_list[[list_name]])
+  }
+  pseudotime <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
+  rownames(pseudotime) <- all_metacells
+  colnames(pseudotime) <- lineages
+  for (list_name in names(pt_list)) {
+    pseudotime[names(pt_list[[list_name]]), list_name] <- pt_list[[list_name]]
+  }
+  colnames(pseudotime) <- lineages
+  rownames(pseudotime) <- all_metacells
+  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots, parallel = parallel, BPPARAM = BPPARAM)
+  out <- sapply(names(cds@lineages), lineage_specific_genes_v2, cds = cds, gamlist = gamlist, simplify = FALSE, dyn_FC_cutoff = dyn_FC_cutoff, parallel = parallel)
   cds@lineage_genes <- out
   cds 
 }
