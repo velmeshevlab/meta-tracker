@@ -333,7 +333,6 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
 
 lineage_specific_genes_par <- function(cds, dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
   lineages = names(cds@lineages)
-  print(test_lineage)
   lineages = names(cds@lineages)
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
   all_metacells = c()
