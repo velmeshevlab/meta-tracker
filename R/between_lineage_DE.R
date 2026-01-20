@@ -220,19 +220,8 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cuto
   lineage_spec_genes
 }
 
-lineage_specific_genes_v2 <- function(test_lineage, cds, U = NULL, nknots = 6, dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
-    print(test_lineage)
-    lineages = names(cds@lineages)
-    lineage_genes = get_lineage_genes_v2(cds, test_lineage, U = U, nknots = nknots, lineages = lineages, dyn_FC_cutoff = dyn_FC_cutoff, parallel = parallel, BPPARAM = BPPARAM)
-    gc()
-    if(length(lineage_genes) > 0){
-    lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
-    lineage_genes
-    }
-    else{return(NULL)}
-}
-
-get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, lineages = NULL, dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
+lineage_specific_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nknots = 6, lineages = names(cds@lineages), dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
+  print(test_lineage)
   lineages = names(cds@lineages)
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
   all_metacells = c()
@@ -331,8 +320,12 @@ get_lineage_genes_v2 <- function(cds, test_lineage, genes = NULL, U = NULL, nkno
     p_values_sel = p_values_sel[names(FCs_sel),]
     final_res = as.data.frame(cbind(p_values_sel, FCs_sel))
     colnames(final_res) <- c("meta_p", "average_FC")
-    final_res = as.data.frame(final_res)
-    final_res
+    lineage_genes = as.data.frame(final_res)
+    if(length(lineage_genes) > 0){
+    lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
+    lineage_genes
+    }
+    else{return(NULL)}
   }
 }
 
@@ -378,6 +371,7 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
 
 lineage_specific_genes_par <- function(cds, dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
   lineages = names(cds@lineages)
+  
   out <- sapply(names(cds@lineages), lineage_specific_genes_v2, cds = cds, simplify = FALSE, dyn_FC_cutoff = dyn_FC_cutoff, parallel = parallel, BPPARAM = BPPARAM)
   cds@lineage_genes <- out
   cds 
