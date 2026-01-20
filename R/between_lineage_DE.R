@@ -352,7 +352,6 @@ lineage_specific_genes_par <- function(cds, dyn_FC_cutoff = 0, parallel = F, BPP
     pt_list[[i]] <- pt
     i <- i + 1
   }
-  print(paste0("Testing ", nrow(counts), " genes"))
   names(lineage_list) <- lineages
   names(pt_list) <- lineages
   cellWeights <- matrix(0, nrow = length(all_metacells), ncol = length(lineages))
@@ -369,7 +368,10 @@ lineage_specific_genes_par <- function(cds, dyn_FC_cutoff = 0, parallel = F, BPP
   }
   colnames(pseudotime) <- lineages
   rownames(pseudotime) <- all_metacells
-  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = U, nknots = nknots, parallel = parallel, BPPARAM = BPPARAM)
+  counts = counts[rownames(cds),]
+  print(paste0("Testing ", nrow(counts), " genes"))
+  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, parallel = parallel, BPPARAM = BPPARAM)
+  return(gamlist)
   out <- sapply(names(cds@lineages), lineage_specific_genes_v2, cds = cds, gamlist = gamlist, simplify = FALSE, dyn_FC_cutoff = dyn_FC_cutoff, parallel = parallel)
   cds@lineage_genes <- out
   cds 
