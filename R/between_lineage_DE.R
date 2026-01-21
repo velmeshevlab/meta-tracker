@@ -220,7 +220,8 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cuto
   lineage_spec_genes
 }
 
-lineage_specific_genes_v2 <- function(cds, test_lineage, gamlist = gamlist, genes = NULL, U = NULL, nknots = 6, lineages = names(cds@lineages), dyn_FC_cutoff = 0, parallel = F, BPPARAM = F){
+lineage_specific_genes_v2 <- function(cds, test_lineage, gamlist = gamlist, genes = NULL, lineages = names(cds@lineages), dyn_FC_cutoff = 0){
+  print("Testing ", test_lineage)
   dynamic = cds@dynamic_genes[[test_lineage]]
   dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dyn_FC_cutoff,])
   if(length(genes) == 0){
