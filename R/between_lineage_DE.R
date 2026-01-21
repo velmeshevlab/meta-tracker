@@ -372,7 +372,7 @@ lineage_specific_genes_par <- function(cds, dyn_FC_cutoff = 0, parallel = F, BPP
   counts = counts[rownames(cds),]
   print(paste0("Testing ", nrow(counts), " genes"))
   gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, parallel = parallel, BPPARAM = BPPARAM)
-  out <- sapply(names(cds@lineages), lineage_specific_genes_v2, cds = cds, gamlist = gamlist, simplify = FALSE, dyn_FC_cutoff = dyn_FC_cutoff, parallel = parallel)
+  out <- sapply(names(cds@lineages), lineage_specific_genes_v2, cds = cds, gamlist = gamlist, simplify = FALSE, dyn_FC_cutoff = dyn_FC_cutoff)
   cds@lineage_genes <- out
   cds 
 }
