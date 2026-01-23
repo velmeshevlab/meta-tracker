@@ -33,7 +33,7 @@ within_lineage_DE_Moran <- function(lineage, #name of the lineage to analyze
                           k = 5,
                           cores = 1
                           ){
-        print(paste0("Testing lineage ", lineage)
+        print(paste0("Testing lineage ", lineage))
         d =cds@expression[[lineage]]
         expr = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric))) #a matrix of expression values, with genes in rows and cells in columns
         expr = expr[rownames(cds),]
