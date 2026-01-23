@@ -4,10 +4,10 @@
 within_lineage_DE_par <- function(cds, parallel = F, BPPARAM = BPPARAM, test = "Moran", cores = 1){
 lineages = names(cds@lineages)
 if(test == "tradeSeq"){
-  out <- pbsapply(lineages, within_lineage_DE_trade, cds = cds, parallel = T, BPPARAM = BPPARAM)
+  out <- lapply(lineages, within_lineage_DE_trade, cds = cds, parallel = T, BPPARAM = BPPARAM)
 }
 else(
-  out <- lapply(lineages, within_lineage_DE_Moran, cds = cds, cl = cores)
+  out <- pbsapply(lineages, within_lineage_DE_Moran, cds = cds, cl = cores)
 )
 names(out) <- lineages
 cds@dynamic_genes <- out
