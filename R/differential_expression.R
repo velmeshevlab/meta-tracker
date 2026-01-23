@@ -30,7 +30,7 @@ make_time_nb <- function(n, k = 5) {
 
 within_lineage_DE_Moran <- function(lineage, #name of the lineage to analyze
                           cds, #metatracker object
-                          k = 5,
+                          k = 5
                           ){
         d =cds@expression[[lineage]]
         expr = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric))) #a matrix of expression values, with genes in rows and cells in columns
