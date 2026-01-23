@@ -17,7 +17,6 @@ cds
 make_time_nb <- function(n, k = 5) {
   stopifnot(n >= 2, k >= 1)
   k <- min(k, n - 1)
-  
   nb <- vector("list", n)
   for (i in seq_len(n)) {
     lo <- max(1, i - k)
@@ -45,7 +44,7 @@ within_lineage_DE_Moran <- function(lineage, #name of the lineage to analyze
                   c(I = unname(mt$estimate[["Moran I statistic"]]),
                   p = mt$p.value)
         }, cl = cl)
-        es <- as.data.frame(do.call(rbind, res))
+        res <- as.data.frame(do.call(rbind, res))
         res$padj <- p.adjust(res$p, method = "fdr")
         rownames(res) <- rownames(expr)
         res <- res[order(res$padj, -res$I),]
