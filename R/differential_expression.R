@@ -31,7 +31,6 @@ make_time_nb <- function(n, k = 5) {
 within_lineage_DE_Moran <- function(lineage, #name of the lineage to analyze
                           cds, #metatracker object
                           k = 5,
-                          cl = FALSE
                           ){
         d =cds@expression[[lineage]]
         expr = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric))) #a matrix of expression values, with genes in rows and cells in columns
@@ -43,7 +42,7 @@ within_lineage_DE_Moran <- function(lineage, #name of the lineage to analyze
                   mt <- moran.test(expr[i, ], lw, zero.policy = TRUE)
                   c(I = unname(mt$estimate[["Moran I statistic"]]),
                   p = mt$p.value)
-        }, cl = cl)
+        })
         res <- as.data.frame(do.call(rbind, res))
         res$padj <- p.adjust(res$p, method = "fdr")
         rownames(res) <- rownames(expr)
