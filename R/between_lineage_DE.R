@@ -220,13 +220,8 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cuto
   lineage_spec_genes
 }
 
-lineage_specific_genes_v2 <- function(test_lineage, cds, gamlist = gamlist, genes = NULL, lineages = names(cds@lineages), filter_by_dyn = TRUE, dyn_FC_cutoff = 0){
+lineage_specific_genes_v2 <- function(test_lineage, cds, gamlist = gamlist, genes = NULL, lineages = names(cds@lineages)){
   print(paste0("Testing ", test_lineage))
-  if(filter_by_dyn == TRUE){
-    dynamic = cds@dynamic_genes[[test_lineage]]
-    dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dyn_FC_cutoff,])
-    gamlist = gamlist[dynamic_genes ,]
-  }
   res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
   if(length(lineages) > 2){
     index = which(test_lineage == lineages)
@@ -330,7 +325,6 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
 }
 
 lineage_specific_genes_par <- function(cds, dyn_FC_cutoff = 0, parallel = F, BPPARAM = F, filter_by_dyn = TRUE){
-  lineages = names(cds@lineages)
   lineages = names(cds@lineages)
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
   all_metacells = c()
