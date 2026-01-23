@@ -1,22 +1,62 @@
 #scaled_FC is fold change of dynamic gene expression scaled based on 95 percentile of expression of the entire dataset.
 #Helps to filter out genes that are dynamically expressed in the given lineage but are expressed at much lower level than in other lineages.
 
-within_lineage_DE_par <- function(cds, parallel = F, BPPARAM = BPPARAM){
+within_lineage_DE_par <- function(cds, parallel = F, BPPARAM = BPPARAM, test = "tradeSeq"){
 lineages = names(cds@lineages)
-out <- lapply(lineages, within_lineage_DE, cds = cds, parallel = T, BPPARAM = BPPARAM)
+if(test == "tradeSeq"){
+out <- lapply(lineages, within_lineage_DE_trade, cds = cds, parallel = T, BPPARAM = BPPARAM)
+}
+else(
+out <- lapply(lineages, within_lineage_DE_Moran, cds = cds, parallel = T, BPPARAM = BPPARAM)     
+)
 names(out) <- lineages
 cds@dynamic_genes <- out
 cds
 }
-        
-within_lineage_DE <- function(lineage, #name of the lineage to analyze
+
+make_time_nb <- function(n, k = 5) {
+  stopifnot(n >= 2, k >= 1)
+  k <- min(k, n - 1)
+  
+  nb <- vector("list", n)
+  for (i in seq_len(n)) {
+    lo <- max(1, i - k)
+    hi <- min(n, i + k)
+    nb[[i]] <- setdiff(lo:hi, i)
+  }
+  class(nb) <- "nb"
+  attr(nb, "region.id") <- as.character(seq_len(n))
+  nb
+}
+
+within_lineage_DE_Moran <- function(lineage, #name of the lineage to analyze
+                          cds, #metatracker object
+                          k = 5
+                          ){
+        d =cds@expression[[lineage]]
+        expr = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric))) #a matrix of expression values, with genes in rows and cells in columns
+        expr = expr[rownames(cds),]
+        n_time <- ncol(expr)
+        nb <- make_time_nb(n_time, k = k)
+        lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
+        res <- lapply(seq_len(nrow(expr)), function(i) {
+                  mt <- moran.test(expr[i, ], lw, zero.policy = TRUE)
+                  c(I = unname(mt$estimate[["Moran I statistic"]]),
+                  p = mt$p.value)
+        })
+        es <- as.data.frame(do.call(rbind, res))
+        res$padj <- p.adjust(res$p, method = "fdr")
+        rownames(res) <- rownames(expr)
+        res <- res[order(res$padj, -res$I),]
+        res
+}
+
+within_lineage_DE_trade <- function(lineage, #name of the lineage to analyze
                           cds, #metatracker object
                           conditions = NULL, #a vector of condition information
                           nknots = 3, #number of knots used to fit the GAM
                           pairwise=TRUE, #pairwise comparison between different conditions
                           contrast_type = "end",
-                          p = 0.05, #p value threshold
-                          FC = 0, #fold change value threshold
                           parallel = F,
                           BPPARAM = F
                           ){
@@ -53,9 +93,6 @@ within_lineage_DE <- function(lineage, #name of the lineage to analyze
   FC_factor = apply(expectation, 2, function(x) as.numeric(quantile(x, 0.95, na.rm= TRUE)))/exp_95_max
   scaled_FC = res$meanLogFC*FC_factor
   res$scaled_FC <- scaled_FC                      
-  res_sig = res[res$pvalue<p & res$scaled_FC >= FC,]
-  res_sig = res_sig[with(res_sig, order(pvalue, -scaled_FC)), ]
-  res_sig
-  #cds@dynamic_genes[[lineage]] <- res_sig
-  #return(cds)
+  res = res_sig[with(res, order(pvalue, -scaled_FC)), ]
+  res
 }
