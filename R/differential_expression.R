@@ -7,7 +7,7 @@ if(test == "tradeSeq"){
   out <- lapply(lineages, within_lineage_DE_trade, cds = cds, parallel = T, BPPARAM = BPPARAM)
 }
 else(
-  out <- pbsapply(lineages, within_lineage_DE_Moran, cds = cds, cl = cores)
+  out <- lapply(lineages, within_lineage_DE_Moran, cds = cds, cl = cores)
 )
 names(out) <- lineages
 cds@dynamic_genes <- out
@@ -38,7 +38,7 @@ within_lineage_DE_Moran <- function(lineage, #name of the lineage to analyze
         n_time <- ncol(expr)
         nb <- make_time_nb(n_time, k = k)
         lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
-        res <- lapply(seq_len(nrow(expr)), function(i) {
+        res <- pblapply(seq_len(nrow(expr)), function(i) {
                   mt <- moran.test(expr[i, ], lw, zero.policy = TRUE)
                   c(I = unname(mt$estimate[["Moran I statistic"]]),
                   p = mt$p.value)
