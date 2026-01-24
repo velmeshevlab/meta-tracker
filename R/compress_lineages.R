@@ -28,7 +28,7 @@ compress_lineage_v3_2 <- function(cds, lineage, N, cores = 1, ID){
 
 compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, ID = TRUE){
   if(lineage != FALSE){
-    sel.cells = cds@lineages[[lineage]]$name
+    sel.cells = cds@lineages[[lineage]]
   }
   sel.cells = sel.cells[sel.cells %in% colnames(cds)]
   cds_subset = cds[,sel.cells]
