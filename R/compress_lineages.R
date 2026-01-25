@@ -37,7 +37,6 @@ compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, ID = TRUE){
   cds@lineages[[lineage]] <- list(
     name = cell_barcodes,
     updated_pt = updated_pt)
-  }
   if(lineage != FALSE){
     sel.cells = cds@lineages[[lineage]]
   }
@@ -49,7 +48,7 @@ compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, ID = TRUE){
   exp = as.data.frame(as.matrix(exprs(cds_subset)))
   exp = (t(exp)) /  (pData(cds_subset)[, 'Size_Factor'])
   exp = exp[,rownames(cds)]
-  pt <- cds@lineages[[lineage]][[updated_pt]]
+  pt <- cds@lineages[[lineage]][['updated_pt']]
   pt <- pt[rownames(exp)]
   pt <- as.data.frame(pt)
   colnames(pt) <- c("pseudotime")
