@@ -32,8 +32,12 @@ compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, ID = TRUE){
   cds_sub <- get_lineage_object(cds, lineage)
   #Get pseudotime from the principal graph aux slot
   updated_pt <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
-  #Store back in cds
-  cds@principal_graph_aux@listData[["UMAP"]][["pseudotime"]] <- updated_pt
+  #Store back in cds@lineages as a list
+  cell_barcodes <- cds@lineages[[lineage]]
+  cds@lineages[[lineage]] <- list(
+    name = cell_barcodes,
+    updated_pt = updated_pt)
+  }
   if(lineage != FALSE){
     sel.cells = cds@lineages[[lineage]]
   }
@@ -45,7 +49,7 @@ compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, ID = TRUE){
   exp = as.data.frame(as.matrix(exprs(cds_subset)))
   exp = (t(exp)) /  (pData(cds_subset)[, 'Size_Factor'])
   exp = exp[,rownames(cds)]
-  pt <- cds@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
+  pt <- cds@lineages[[lineage]][[updated_pt]]
   pt <- pt[rownames(exp)]
   pt <- as.data.frame(pt)
   colnames(pt) <- c("pseudotime")
