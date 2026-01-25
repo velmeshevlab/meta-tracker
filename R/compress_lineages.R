@@ -27,6 +27,7 @@ compress_lineage_v3_2 <- function(cds, lineage, N, cores = 1, ID){
 }
 
 compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, ID = TRUE){
+  print("Updating pseudotime")
   #Extract the lineage object
   cds_sub <- get_lineage_object(cds, lineage)
   #Get pseudotime from the principal graph aux slot
