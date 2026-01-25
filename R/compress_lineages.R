@@ -38,7 +38,7 @@ compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, ID = TRUE){
     name = cell_barcodes,
     updated_pt = updated_pt)
   if(lineage != FALSE){
-    sel.cells = cds@lineages[[lineage]]
+    sel.cells = cds@lineages[[lineage]][['name']]
   }
   sel.cells = sel.cells[sel.cells %in% colnames(cds)]
   cds_subset = cds[,sel.cells]
