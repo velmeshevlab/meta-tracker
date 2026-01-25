@@ -27,6 +27,12 @@ compress_lineage_v3_2 <- function(cds, lineage, N, cores = 1, ID){
 }
 
 compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, ID = TRUE){
+  #Extract the lineage object
+  cds_sub <- get_lineage_object(cds, lineage)
+  #Get pseudotime from the principal graph aux slot
+  updated_pt <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
+  #Store back in cds
+  cds@principal_graph_aux@listData[["UMAP"]][["pseudotime"]] <- updated_pt
   if(lineage != FALSE){
     sel.cells = cds@lineages[[lineage]]
   }
@@ -38,7 +44,7 @@ compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, ID = TRUE){
   exp = as.data.frame(as.matrix(exprs(cds_subset)))
   exp = (t(exp)) /  (pData(cds_subset)[, 'Size_Factor'])
   exp = exp[,rownames(cds)]
-  pt <- cds@lineages[[lineage]]$updated_pt
+  pt <- cds@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
   pt <- pt[rownames(exp)]
   pt <- as.data.frame(pt)
   colnames(pt) <- c("pseudotime")
