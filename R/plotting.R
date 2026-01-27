@@ -1,3 +1,5 @@
+umap_theme <- theme(plot.title = element_blank(), legend.position="none", panel.border = element_blank(), axis.text.x = element_text(size=16), axis.text.y = element_text(size=16), axis.title.x = element_text(size=18, face="bold"), axis.title.y = element_text(size=18, face="bold"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"), panel.background = element_blank(), legend.title=element_text(size=16))
+
 find_start_point <-function(graph_list){
   start_ends = c()
   for(graph_name in names(graph_list)){
