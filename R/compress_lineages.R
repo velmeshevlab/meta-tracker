@@ -8,7 +8,7 @@ filter_by_expression <- function(cds, mode = "number", N = 100, ratio = 0.01){
   data = counts(cds)
   lineages = names(cds@lineages)
   all.expressed_genes = c()
-  if(mode == "mode"){
+  if(mode == "ratio"){
    cutoff = ratio*ncol(data.sub)
   }
   else{
