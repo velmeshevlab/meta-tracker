@@ -4,10 +4,16 @@ compress_3_2 <- function(df, leftover, n){
  return(df_comp)
 }
 
-filter_by_expression <- function(cds, ratio = 0.01){
+filter_by_expression <- function(cds, mode = "number", N = 100, ratio = 0.01){
   data = counts(cds)
   lineages = names(cds@lineages)
   all.expressed_genes = c()
+  if(mode == "mode"){
+   cutoff = ratio*ncol(data.sub)
+  }
+  else{
+   cutoff = N
+  }
   for(lineage in lineages){
     cells = as.character(cds@lineages[[lineage]])
     data.sub = data[,cells]
