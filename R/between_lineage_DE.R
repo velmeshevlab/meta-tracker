@@ -114,7 +114,7 @@ names(branch_list_full) <- names
 branch_list_full
 }
                         
-format_branch_specific_genes <- function(branch_point, cds, branch_number = 1, p_cutoff = 0.05, FC_cutoff = 0.5, dynamic_FC_cutoff = 0.2, p_adjust = "BH"){
+format_branch_specific_genes <- function(branch_point, cds, branch_number = 1, p_cutoff = 0.05, FC_cutoff = 0.2, dynamic_p_cutoff = 0.05, dynamic_FC_cutoff = 0.1, p_adjust = "BH", dynamic_test = "Moran"){
   lineages = names(cds@lineages)
   branches_1 = branch_point[[branch_number]]
   if(branch_number == 1){
@@ -136,9 +136,14 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1, p
       p_names = c(p_names, paste0("pvalue_", lineage, "vs", lin))
     }
     if(dynamic_FC_cutoff != F){
-      dynamic = cds@dynamic_genes[[lineage]]
+    dynamic = cds@dynamic_genes[[lineage]]
+    if(dynamic_test == "Moran"){
+      dynamic_genes = rownames(dynamic[dynamic$I >= dynamic_FC_cutoff & dynamic$padj < dynamic_p_cutoff, ])
+    }
+    else{
       dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dynamic_FC_cutoff, ])
-      lineage_genes = lineage_genes[dynamic_genes,]
+    }
+    lineage_genes = lineage_genes[dynamic_genes,]
     }
     lineage_genes = lineage_genes[,c(p_names, FC_names, "meta_p", "average_FC")]
     FCs = lineage_genes[,(length(branches_2)+1):(ncol(lineage_genes)-2)]
