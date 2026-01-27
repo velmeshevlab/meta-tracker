@@ -191,13 +191,13 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1, p
   final_out
 }
 
-format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cutoff = 0.2, dynamic_FC_cutoff = 0.1, p_adjust = "BH", specificity = "high", dynamic_test = "Moran"){
+format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cutoff = 0.2, dynamic_FC_cutoff = 0.1, dynamic_p_cutoff = 0.05, p_adjust = "BH", specificity = "high", dynamic_test = "Moran"){
   lineages = names(cds@lineages)
   lineage_genes = cds@lineage_genes[[lineage]]
   if(dynamic_FC_cutoff != F){
     dynamic = cds@dynamic_genes[[lineage]]
     if(dynamic_test == "Moran"){
-      dynamic_genes = rownames(dynamic[dynamic$I >= dynamic_FC_cutoff, ])
+      dynamic_genes = rownames(dynamic[dynamic$I >= dynamic_FC_cutoff & dynamic$padj < dynamic_p_cutoff, ])
     }
     else{
       dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dynamic_FC_cutoff, ])
