@@ -123,19 +123,19 @@ First, we filter out low expressed genes. Any gene expressed in at least 1% of s
   expressed_genes = filter_by_expression(cds_new)
   cds_F = cds_new[expressed_genes,]
 ```
-Here, we generate 500 meta-cells along each trajectory. We use parallel processing to speed up this step. In this case, we don't care if the cells are from the same biological sample or now, hence ID = FALSE.
+Here, we generate 1000 meta-cells along each trajectory. We use parallel processing to speed up this step. In this case, we don't care if the cells are from the same biological sample or now, hence ID = FALSE.
 It takes ~15 min on a 24-core machine for each lineage (275,000 cells and 12,000 genes).
 ```
-cds_F = compress_lineage_v3_2(cds_F, "SST", N = 500, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "SST_RELN", N = 500, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "PV", N = 500, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "PV_MME", N = 500, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "VIP", N = 500, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "CALB2", N = 500, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "CCK", N = 500, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "RELN", N = 500, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "LAMP5", N = 500, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 500, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "SST", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "SST_RELN", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "PV", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "PV_MME", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "VIP", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "CALB2", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "CCK", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "RELN", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "LAMP5", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 1000, cores = 24, ID = FALSE)
 ```
 ### 2.2. Now, we find genes that are dynamically expressed in each lineage. Takes ~15 min for 10 lineages (275,000 cells and 12,000 genes).
 ```
@@ -146,7 +146,7 @@ cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 500, cores = 24, ID = FALSE)
 ### 2.3. Next, we can identify lineage-specific genes. We do it by comparing each lineage to all other lineages and calculating meta p value and average fold change.
 ###      We only keep the genes that have significant p values in all lineage comparisons and are also dynamically expressed.
 ```
-  BPPARAM <- BiocParallel::MulticoreParam(workers = 12)
+  BPPARAM <- BiocParallel::MulticoreParam(workers = 3)
   BiocParallel::register(BPPARAM)
   cds_F <- lineage_specific_genes_par(cds = cds_F, parallel = T, BPPARAM = BPPARAM)
   write_lin_genes <- function(lineage, cds)
