@@ -124,7 +124,7 @@ First, we filter out low expressed genes. Any gene expressed in at least 1% of s
   cds_F = cds_new[expressed_genes,]
 ```
 Here, we generate 1000 meta-cells along each trajectory. We use parallel processing to speed up this step. In this case, we don't care if the cells are from the same biological sample or now, hence ID = FALSE.
-It takes ~15 min on a 24-core machine for each lineage (275,000 cells and 12,000 genes).
+It takes ~30 min per lineage on a 24-core machine for each lineage (275,000 cells and 15,000 genes).
 ```
 cds_F = compress_lineage_v3_2(cds_F, "SST", N = 1000, cores = 24, ID = FALSE)
 cds_F = compress_lineage_v3_2(cds_F, "SST_RELN", N = 1000, cores = 24, ID = FALSE)
@@ -137,7 +137,7 @@ cds_F = compress_lineage_v3_2(cds_F, "RELN", N = 1000, cores = 24, ID = FALSE)
 cds_F = compress_lineage_v3_2(cds_F, "LAMP5", N = 1000, cores = 24, ID = FALSE)
 cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 1000, cores = 24, ID = FALSE)
 ```
-### 2.2. Now, we find genes that are dynamically expressed in each lineage. Takes ~15 min for 10 lineages (275,000 cells and 12,000 genes).
+### 2.2. Now, we find genes that are dynamically expressed in each lineage. Takes ~15 min per lineage (275,000 cells and 15,000 genes).
 ```
   BPPARAM <- BiocParallel::MulticoreParam(workers = 24)
   BiocParallel::register(BPPARAM)
