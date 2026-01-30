@@ -1,8 +1,7 @@
 #scaled_FC is fold change of dynamic gene expression scaled based on 95 percentile of expression of the entire dataset.
 #Helps to filter out genes that are dynamically expressed in the given lineage but are expressed at much lower level than in other lineages.
 
-within_lineage_DE_par <- function(cds, parallel = F, BPPARAM = BPPARAM, test = "Moran", cores = 1){
-lineages = names(cds@lineages)
+within_lineage_DE_par <- function(cds, lineages = names(cds@lineages), parallel = F, BPPARAM = BPPARAM, test = "Moran", cores = 1){
 if(test == "tradeSeq"){
   out <- lapply(lineages, within_lineage_DE_trade, cds = cds, parallel = T, BPPARAM = BPPARAM)
 }
