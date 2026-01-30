@@ -29,30 +29,31 @@ make_time_nb <- function(n, k = 5) {
 }
 
 within_lineage_DE_Moran <- function(lineage, #name of the lineage to analyze
-             cds, #metatracker object
-             k = 5,
-             cores = 1
-             ){
-    print(paste0("Testing lineage ", lineage))
-    d =cds@expression[[lineage]]
-    expr = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric))) #a matrix of expression values, with genes in rows and cells in columns
-    expr = expr[rownames(cds),]
-    n_time <- ncol(expr)
-    nb <- make_time_nb(n_time, k = k)
-    lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
-    keep_rows <- apply(expr, 1, function(x) {
-                  all(is.finite(x)) && var(x) > 0})
-    expr_filtered <- expr[keep_rows, , drop = FALSE]
-    res <- pblapply(seq_len(nrow(expr_filtered)), function(i) {
-         mt <- moran.test(expr_filtered[i, ], lw, zero.policy = TRUE)
-         c(I = unname(mt$estimate[["Moran I statistic"]]),
-         p = mt$p.value)
-    }, cl = cores)
-    res <- as.data.frame(do.call(rbind, res))
-    res$padj <- p.adjust(res$p, method = "fdr")
-    rownames(res) <- rownames(expr_filtered)
-    res <- res[order(res$padj, -res$I),]
-    res
+                                    cds, #metatracker object
+                                    k = 5,
+                                    cores = 1
+){
+  print(paste0("Testing lineage ", lineage))
+  d =cds@expression[[lineage]][["mean"]]
+  expr = t(as.matrix(sapply(d[,6:ncol(d)], as.numeric))) #a matrix of expression values, with genes in rows and cells in columns
+  expr = expr[rownames(cds),]
+  n_time <- ncol(expr)
+  nb <- make_time_nb(n_time, k = k)
+  lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
+  expr[expr < 0] <- 0
+  keep_rows <- apply(expr, 1, function(x) {
+    all(is.finite(x)) && var(x) > 0})
+  expr_filtered <- expr[keep_rows, , drop = FALSE]
+  res <- pblapply(seq_len(nrow(expr_filtered)), function(i) {
+    mt <- moran.test(expr_filtered[i, ], lw, zero.policy = TRUE)
+    c(I = unname(mt$estimate[["Moran I statistic"]]),
+      p = mt$p.value)
+  }, cl = cores)
+  res <- as.data.frame(do.call(rbind, res))
+  res$padj <- p.adjust(res$p, method = "fdr")
+  rownames(res) <- rownames(expr_filtered)
+  res <- res[order(res$padj, -res$I),]
+  res
 }
 
 within_lineage_DE_trade <- function(lineage, #name of the lineage to analyze
