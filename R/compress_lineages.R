@@ -32,6 +32,7 @@ compress_lineage_v3_2 <- function(cds, lineage, method, N, cores = 1, ID){
   cds@pseudotime[[lineage]] <- exp$pseudotime
   cds
 }
+
 compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, method = "sum", ID = FALSE){
   print("Updating pseudotime")
   #Extract the lineage object
