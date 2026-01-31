@@ -336,20 +336,23 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
 
 lineage_specific_genes_par <- function(cds, parallel = F, BPPARAM = F, filter_by_dyn = TRUE){
   lineages = names(cds@lineages)
-  counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]])-3,ncol = 0)
+  counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]][["sum"]])-6,ncol = 0)
   all_metacells = c()
   lineage_list = list()
   pt_list = list()
   i = 1
+  size_factors = c()
   for(lineage in lineages){
     metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]])))
-    d = cds@expression[[lineage]]
-    d = t(as.matrix(sapply(d[,4:ncol(d)], as.numeric)))
+    d =cds@expression[[lineage]][["sum"]]
+    pt = d$pseudotime
+    size_factor = d$size_factor
+    size_factors = c(size_factors, size_factor)
+    d = t(as.matrix(sapply(d[,7:ncol(d)], as.numeric)))
     colnames(d) <- metacells
     counts <- cbind(counts, d)
     all_metacells <- c(all_metacells, metacells)
     lineage_list[[i]] <- metacells
-    pt = cds@pseudotime[[lineage]][,1]
     names(pt) <- metacells
     pt_list[[i]] <- pt
     i <- i + 1
@@ -372,7 +375,7 @@ lineage_specific_genes_par <- function(cds, parallel = F, BPPARAM = F, filter_by
   rownames(pseudotime) <- all_metacells
   counts = counts[rownames(cds),]
   print(paste0("Testing ", nrow(counts), " genes"))
-  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, parallel = parallel, BPPARAM = BPPARAM)
+  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, offset = size_factors, U = NULL, nknots = 6, parallel = parallel, BPPARAM = BPPARAM)
   out <- sapply(names(cds@lineages), lineage_specific_genes_v2, cds = cds, gamlist = gamlist, simplify = FALSE)
   cds@lineage_genes <- out
   cds 
