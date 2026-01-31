@@ -334,8 +334,7 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
   FCs
 }
 
-lineage_specific_genes_par <- function(cds, parallel = F, BPPARAM = F, filter_by_dyn = TRUE){
-  lineages = names(cds@lineages)
+lineage_specific_genes_par <- function(cds, parallel = F, lineages = names(cds@lineages), BPPARAM = F, filter_by_dyn = TRUE){
   counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]][["sum"]])-6,ncol = 0)
   all_metacells = c()
   lineage_list = list()
@@ -343,7 +342,7 @@ lineage_specific_genes_par <- function(cds, parallel = F, BPPARAM = F, filter_by
   i = 1
   size_factors = c()
   for(lineage in lineages){
-    metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]])))
+    metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]][["sum"]])))
     d =cds@expression[[lineage]][["sum"]]
     pt = d$pseudotime
     size_factor = d$size_factor
