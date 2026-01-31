@@ -126,16 +126,16 @@ First, we filter out low expressed genes. Any gene expressed in at least 1% of s
 Here, we generate 1000 meta-cells along each trajectory. We use parallel processing to speed up this step. In this case, we don't care if the cells are from the same biological sample or now, hence ID = FALSE.
 It takes ~30 min per lineage on a 24-core machine for each lineage (275,000 cells and 15,000 genes).
 ```
-cds_F = compress_lineage_v3_2(cds_F, "SST", N = 1000, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "SST_RELN", N = 1000, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "PV", N = 1000, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "PV_MME", N = 1000, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "VIP", N = 1000, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "CALB2", N = 1000, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "CCK", N = 1000, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "RELN", N = 1000, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "LAMP5", N = 1000, cores = 24, ID = FALSE)
-cds_F = compress_lineage_v3_2(cds_F, "NOS", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "SST", method = "all", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "SST_RELN", method = "all", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "PV", method = "all", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "PV_MME", method = "all", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "VIP", method = "all", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "CALB2", method = "all", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "CCK", method = "all", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "RELN", method = "all", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "LAMP5", method = "all", N = 1000, cores = 24, ID = FALSE)
+cds_F = compress_lineage_v3_2(cds_F, "NOS", method = "all", N = 1000, cores = 24, ID = FALSE)
 ```
 ### 2.2. Now, we find genes that are dynamically expressed in each lineage. Takes ~15 min per lineage (275,000 cells and 15,000 genes).
 ```
