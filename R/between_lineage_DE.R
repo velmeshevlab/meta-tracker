@@ -376,7 +376,8 @@ lineage_specific_genes_par <- function(cds, parallel = F, BPPARAM = F, filter_by
   rownames(pseudotime) <- all_metacells
   counts = counts[rownames(cds),]
   print(paste0("Testing ", nrow(counts), " genes"))
-  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, offset = log(all_size_factor), parallel = parallel, BPPARAM = BPPARAM)
+  #gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, offset = log(all_size_factor), parallel = parallel, BPPARAM = BPPARAM)
+  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, parallel = parallel, BPPARAM = BPPARAM)
   res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
   out <- sapply(names(cds@lineages), lineage_specific_genes_v2, cds = cds, res = res, simplify = FALSE)
   cds@lineage_genes <- out
