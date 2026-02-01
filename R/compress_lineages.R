@@ -25,7 +25,7 @@ filter_by_expression <- function(cds, mode = "number", N = 100, ratio = 0.01){
 }
 
 compress_lineage_v3_2 <- function(cds, lineage, method, N, cores = 1, ID){
-  exp = compress_expression_v3_3(cds, lineage = lineage, method = method, N = N, cores = cores, ID = ID)  
+  exp = compress_expression_v3_3(cds, lineage = lineage, method = method, N = N, cores = cores, ID = ID)
   cds@lineages[[lineage]] <- exp$lineage
   cds@expression[[lineage]] <- exp$expression
   cds@expectation[[lineage]] <- exp$expectation
@@ -93,13 +93,20 @@ compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, method = "sum",
     meta_sum_ordered <- meta_sum[order(meta_sum$pseudotime), ]
     mat <- meta_sum_ordered[,7:(ncol(meta_sum_ordered))]
     #fit expression
-    model <- expression ~ splines::ns(pseudotime, df = 3) +
-      stats::offset(log(size_factor))
-    d <-  meta_sum_ordered$pseudotime - min(meta_sum_ordered$pseudotime)
+    model <- expression ~ splines::ns(pseudotime, df = 7) + offset(log(size_factor))
     size_factor = meta_sum_ordered$size_factor
-    print("Fitting curves")
-    fit = pbsapply(mat, fit.m3_3, pt = d, size_factor = size_factor, model = model, N = N, cl = cores)
-    fit = apply(fit, 2, as.numeric)
+    d <-  (meta_sum_ordered$pseudotime - min(meta_sum_ordered$pseudotime))/(max(meta_sum_ordered$pseudotime)-min(meta_sum_ordered$pseudotime))
+    print("Fitting curves scaled pseudotime")
+    predict_pt <- seq(0, 1, length.out = N)
+    #fit_2 = pbsapply(mat, fit.m3_3, pt = d, size_factor = size_factor, predict_pt = predict_pt, lineage = lineage, model = model, N = N, cl = cores)
+    mat_m <- as.matrix(mat)
+    genes <- colnames(mat_m)
+    fit_list_2 <- pbapply::pbsapply(setNames(seq_along(genes), genes),function(i) {
+        fit.m3_3(exp.sel = mat_m[, i], pt = d, size_factor = size_factor, predict_pt = predict_pt, lineage = lineage, model = model, N = N)
+      },
+      cl = cores
+    )
+    fit_list_2 = apply(fit_list_2, 2, as.numeric)
     if (method != "sum") {
       exp_mean <- exp
       exp_mean = (t(exp_mean)) /  (pData(cds_subset)[, 'Size_Factor'])
@@ -126,34 +133,49 @@ compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, method = "sum",
         ungroup()
       meta_mean_ordered <- meta_mean[order(meta_mean$pseudotime), ]
       return(list(
-        "lineage" = cds@lineages[[lineage]], "expression" = list("sum" = meta_sum_ordered, "mean" = meta_mean_ordered), "expectation" = fit, "pseudotime"  = d))
+        "lineage" = cds@lineages[[lineage]], "expression" = list("sum" = meta_sum_ordered, "mean" = meta_mean_ordered), "expectation" = fit_list_2, "pseudotime"  = list("real" = meta_sum_ordered$pseudotime, "scaled" = d)))
     }
-    return(list("lineage"= cds@lineages[[lineage]], "expression" = meta_sum_ordered, "expectation" = fit, "pseudotime" = d))
-    }
+    return(list("lineage"= cds@lineages[[lineage]], "expression" = meta_sum_ordered, "expectation" = fit_list_2, "pseudotime"  = list("real" = meta_sum_ordered$pseudotime, "scaled" = d)))
+  }
 }
 
-fit.m3_3 <- function(exp.sel, pt, size_factor, model, N){
-  require(speedglm)
-  family = stats::quasipoisson()
-  exp_data.sel = cbind(pt, size_factor, exp.sel)
-  colnames(exp_data.sel) <- c("pseudotime","size_factor","expression")
-  exp_data.sel = as.data.frame(exp_data.sel)
-  #exp_data.sel$pseudotime <- as.numeric(as.character(exp_data.sel$pseudotime))
-  #exp_data.sel$expression <- as.numeric(as.character(exp_data.sel$expression))
-  #exp_data.sel$size_factor <- as.numeric(as.character(exp_data.sel$size_factor))
-  for (col in colnames(exp_data.sel)) {
-	  if (!is.numeric(exp_data.sel[[col]])) {
-      exp_data.sel[[col]] <- as.numeric(as.character(exp_data.sel[[col]]))
-    }
+fit.m3_3 <- function(exp.sel, pt, size_factor, predict_pt, lineage, model, N) {
+  
+  if (!requireNamespace("speedglm", quietly = TRUE)) {
+    stop("speedglm not installed")
   }
-  tryCatch({fit_model = speedglm(model, data = exp_data.sel, family = family, acc=1e-3, model=FALSE, y=FALSE)
-  d <- data.frame(
-    pseudotime = pt,
-    size_factor = 1
+  
+  exp_data.sel <- data.frame(
+    pseudotime  = as.numeric(pt),
+    size_factor = as.numeric(size_factor),
+    expression  = as.numeric(exp.sel)
   )
-  fit = stats::predict(fit_model, newdata=d, type="response")
-  return(fit)
-  }, error=function(cond) {return(rep("NA", N))})
+  
+  # Try to fit the model and predict
+  pred <- tryCatch({
+    
+    fit_model <- speedglm::speedglm(
+      model,
+      data = exp_data.sel,
+      family = quasipoisson(),
+      acc = 1e-3,
+      model = FALSE,
+      y = FALSE
+    )
+    
+    newdata <- data.frame(
+      pseudotime  = as.numeric(predict_pt),
+      size_factor = 1
+    )
+    
+    predict(fit_model, newdata = newdata, type = "response")
+    
+  }, error = function(e) {
+    # If error occurs, return NA vector
+    rep(NA_real_, N)
+  })
+  
+  return(pred)
 }
 
 compress_expression_v3_2 <- function(cds, lineage, N, cores = 1, ID = TRUE){
