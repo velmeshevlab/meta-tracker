@@ -230,9 +230,8 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cuto
   lineage_spec_genes
 }
 
-lineage_specific_genes_v2 <- function(test_lineage, cds, gamlist = gamlist, genes = NULL, lineages = names(cds@lineages)){
+lineage_specific_genes_v2 <- function(test_lineage, cds, res = res, genes = NULL, lineages = names(cds@lineages)){
   print(paste0("Testing ", test_lineage))
-  res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
   if(length(lineages) > 2){
     index = which(test_lineage == lineages)
     p_list = c()
@@ -287,8 +286,8 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, gamlist = gamlist, gene
     colnames(final_res) <- c("meta_p", "average_FC")
     lineage_genes = as.data.frame(final_res)
     if(length(lineage_genes) > 0){
-    lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
-    lineage_genes
+      lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
+      lineage_genes
     }
     else{return(NULL)}
   }
@@ -334,24 +333,27 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
   FCs
 }
 
-lineage_specific_genes_par <- function(cds, parallel = F, lineages = names(cds@lineages), BPPARAM = F, filter_by_dyn = TRUE){
-  counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]][["sum"]])-6,ncol = 0)
+lineage_specific_genes_par <- function(cds, parallel = F, BPPARAM = F, filter_by_dyn = TRUE){
+  lineages = names(cds@lineages)
+  counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]][['sum']])-6,ncol = 0)
   all_metacells = c()
+  all_size_factor = c()
   lineage_list = list()
   pt_list = list()
   i = 1
-  size_factors = c()
   for(lineage in lineages){
-    metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]][["sum"]])))
-    d =cds@expression[[lineage]][["sum"]]
-    pt = d$pseudotime
-    size_factor = d$size_factor
-    size_factors = c(size_factors, size_factor)
+    metacells = paste0(lineage, "_", c(1:nrow(cds@expression[[lineage]][['sum']])))
+    d = cds@expression[[lineage]][['sum']]
     d = t(as.matrix(sapply(d[,7:ncol(d)], as.numeric)))
+    d <- d[rownames(cds),]
     colnames(d) <- metacells
     counts <- cbind(counts, d)
     all_metacells <- c(all_metacells, metacells)
+    size_factor = cds@expression[[lineage]][['sum']]$size_factor
+    all_size_factor <- c(all_size_factor, size_factor)
     lineage_list[[i]] <- metacells
+    #pt = cds@pseudotime[[lineage]]
+    pt = cds@expression[[lineage]][["sum"]]$pseudotime
     names(pt) <- metacells
     pt_list[[i]] <- pt
     i <- i + 1
@@ -374,8 +376,9 @@ lineage_specific_genes_par <- function(cds, parallel = F, lineages = names(cds@l
   rownames(pseudotime) <- all_metacells
   counts = counts[rownames(cds),]
   print(paste0("Testing ", nrow(counts), " genes"))
-  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, offset = size_factors, U = NULL, nknots = 6, parallel = parallel, BPPARAM = BPPARAM)
-  out <- sapply(lineages, lineage_specific_genes_v2, cds = cds, gamlist = gamlist, lineages = lineages, simplify = FALSE)
+  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, offset = log(all_size_factor), parallel = parallel, BPPARAM = BPPARAM)
+  res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
+  out <- sapply(names(cds@lineages), lineage_specific_genes_v2, cds = cds, res = res, simplify = FALSE)
   cds@lineage_genes <- out
   cds 
 }
