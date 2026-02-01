@@ -294,42 +294,42 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, res = res, genes = NULL
 }
 
 calculate_dynamic_FC_single <- function(cds, test_lineage, genes, comp_lineage){
-  genes = genes[genes %in% colnames(cds@expectation[[test_lineage]])]
+  genes = genes[genes %in% colnames(cds@expectation[[test_lineage]][["scaled"]])]
   FCs = sapply(genes, calculate_dynamic_FC_single_gene, cds = cds, test_lineage = test_lineage, comp_lineage = comp_lineage)
   names(FCs) <- genes
   FCs
-  }
+}
 
 calculate_dynamic_FC_single_gene <- function(gene, cds, test_lineage, comp_lineage){
-  exp1 = cds@expectation[[test_lineage]]
-  pt = c(1:nrow(exp1))
-  exp2 = cds@expectation[[comp_lineage]]
-  auc_dataset1 <- trapz(pt, exp1[,gene])
-  auc_dataset2 <- trapz(pt, exp2[,gene])
+  exp1 = cds@expectation[[test_lineage]][["scaled"]]
+  exp2 = cds@expectation[[comp_lineage]][["scaled"]]
+  grid = seq(0, 1, length.out = nrow(exp1))
+  auc_dataset1 <- trapz(grid, exp1[,gene])
+  auc_dataset2 <- trapz(grid, exp2[,gene])
   auc_difference <- log2(auc_dataset1/auc_dataset2)
   auc_difference 
 }
 
 calculate_dynamic_FC <- function(cds, test_lineage, genes, lineages){
-  genes = genes[genes %in% colnames(cds@expectation[[test_lineage]])]
+  genes = genes[genes %in% colnames(cds@expectation[[test_lineage]][["scaled"]])]
   FC_matrix = sapply(genes, calculate_dynamic_FC_gene, cds = cds, test_lineage = test_lineage, lineages = lineages)
   rownames(FC_matrix) <- names(cds@lineages)[names(cds@lineages) != test_lineage]
   FC_matrix
-  }
+}
 
 calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
-  exp1 = cds@expectation[[test_lineage]]
-  pt = c(1:nrow(exp1))
+  exp1 = cds@expectation[[test_lineage]][["scaled"]]
+  grid = seq(0, 1, length.out = nrow(exp1))
   FCs = c()
   for(lin in lineages){
     if(lin != test_lineage){
-      exp2 = cds@expectation[[lin]]
-      auc_dataset1 <- trapz(pt, exp1[,gene])
-      auc_dataset2 <- trapz(pt, exp2[,gene])
+      exp2 = cds@expectation[[lin]][["scaled"]]
+      auc_dataset1 <- trapz(grid, exp1[,gene])
+      auc_dataset2 <- trapz(grid, exp2[,gene])
       auc_difference <- log2(auc_dataset1/auc_dataset2)
       FCs <- c(FCs, auc_difference)
-      }
     }
+  }
   FCs
 }
 
@@ -590,15 +590,18 @@ get_average_FC <- function(FC){
   mean_log2
 }
 
-get_meta_p <- function(Ps){
-  nonZero = length(which(Ps!=0))
-  if(nonZero >= 2){
+get_meta_p <- function(Ps) {
+  Ps <- Ps[!is.na(Ps)]
+  
+  # Replace zeros with a tiny positive number
+  Ps[Ps == 0] <- .Machine$double.xmin
+  
+  if (length(Ps) >= 2) {
     sumlog(Ps)$p
+  } else {
+    NA_real_  # Not enough p-values to combine
   }
-  else{
-    0
-      }
-  }
+}
 
 between_lineage_DE <- function(counts, # A matrix with genes in rows and cells in columns, cells should be aligned in the order of separate lineages
                                pseudotime, # A matrix of pseudotime values, each row represents a cell and each column represents a lineage, the order of lineages should correspond to the order of cells in "counts"
