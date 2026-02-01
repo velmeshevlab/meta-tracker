@@ -378,7 +378,7 @@ lineage_specific_genes_par <- function(cds, lineages = names(cds@lineages), para
   #gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, offset = log(all_size_factor), parallel = parallel, BPPARAM = BPPARAM)
   gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, parallel = parallel, BPPARAM = BPPARAM)
   res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
-  out <- sapply(names(cds@lineages), lineage_specific_genes_v2, cds = cds, res = res, lineages = lineages, simplify = FALSE)
+  out <- sapply(lineages, lineage_specific_genes_v2, cds = cds, res = res, lineages = lineages, simplify = FALSE)
   cds@lineage_genes <- out
   cds 
 }
