@@ -2,15 +2,15 @@
 #Helps to filter out genes that are dynamically expressed in the given lineage but are expressed at much lower level than in other lineages.
 
 within_lineage_DE_par <- function(cds, lineages = names(cds@lineages), parallel = F, BPPARAM = BPPARAM, test = "Moran", cores = 1){
-if(test == "tradeSeq"){
-  out <- lapply(lineages, within_lineage_DE_trade, cds = cds, parallel = T, BPPARAM = BPPARAM)
-}
-else(
-  out <- lapply(lineages, within_lineage_DE_Moran, cds = cds, cores = cores)
-)
-names(out) <- lineages
-cds@dynamic_genes <- out
-cds
+  if(test == "tradeSeq"){
+    out <- lapply(lineages, within_lineage_DE_trade, cds = cds, parallel = T, BPPARAM = BPPARAM)
+  }
+  else(
+    out <- lapply(lineages, within_lineage_DE_Moran, cds = cds, cores = cores)
+  )
+  names(out) <- lineages
+  cds@dynamic_genes <- out
+  cds
 }
 
 make_time_nb <- function(n, k = 5) {
