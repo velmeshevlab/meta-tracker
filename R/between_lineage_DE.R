@@ -334,7 +334,7 @@ calculate_dynamic_FC_gene <- function(gene, cds, test_lineage, lineages){
 }
 
 lineage_specific_genes_par <- function(cds, lineages = names(cds@lineages), parallel = F, BPPARAM = F, filter_by_dyn = TRUE){
-  counts = matrix(,nrow = ncol(cds@expression[[lineages[1]]][['sum']])-6,ncol = 0)
+  counts = matrix(,nrow = nrow(cds),ncol = 0)
   all_metacells = c()
   all_size_factor = c()
   lineage_list = list()
