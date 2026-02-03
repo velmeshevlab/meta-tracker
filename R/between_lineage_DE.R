@@ -230,7 +230,7 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cuto
   lineage_spec_genes
 }
 
-lineage_specific_genes_v2 <- function(test_lineage, cds, res = res, genes = NULL, lineages = names(cds@lineages)){
+lineage_specific_genes_v2 <- function(test_lineage, cds, pattern, diffend, genes = NULL, lineages = names(cds@lineages)){
   print(paste0("Testing ", test_lineage))
   if(length(lineages) > 2){
     index = which(test_lineage == lineages)
@@ -274,17 +274,19 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, res = res, genes = NULL
     final_res
   }
   else{
-    res_sel = res[,c("waldStat", "pvalue")]
-    res_sel = as.matrix(res_sel)
-    gene_names = rownames(res_sel)
+    pattern_sel = pattern[,c("waldStat", "pvalue")]
+    pattern_sel = as.matrix(pattern_sel)
+    diffend_sel = diffend[,c("waldStat", "pvalue")]
+    diffend_sel = as.matrix(diffend_sel)
+    gene_names = rownames(pattern_sel)
     FCs = calculate_dynamic_FC_single(cds, test_lineage, gene_names, lineages[lineages != test_lineage])
     FCs_sel = FCs
-    res_sel = res_sel[names(FCs_sel),]
-    final_res = as.data.frame(cbind(res_sel, FCs_sel))
-    colnames(final_res) <- c("waldStat", "meta_p", "log2FC")
+    pattern_sel = pattern_sel[names(FCs_sel),]
+    diffend_sel = diffend_sel[names(FCs_sel),]
+    final_res = as.data.frame(cbind(pattern_sel, diffend_sel, FCs_sel))
+    colnames(final_res) <- c("waldStat_pattern", "meta_p_pattern", "waldStat_diffend", "meta_p_diffend", "log2FC")
     lineage_genes = as.data.frame(final_res)
     if(length(lineage_genes) > 0){
-      lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(log2FC))), ]
       lineage_genes
     }
     else{return(NULL)}
@@ -374,8 +376,9 @@ lineage_specific_genes_par <- function(cds, lineages = names(cds@lineages), para
   counts = counts[rownames(cds),]
   print(paste0("Testing ", nrow(counts), " genes"))
   gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, offset = log(all_size_factor), parallel = parallel, BPPARAM = BPPARAM)
-  res = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
-  out <- sapply(lineages, lineage_specific_genes_v2, cds = cds, res = res, lineages = lineages, simplify = FALSE)
+  pattern = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
+  diffend = tradeSeq::diffEndTest(models = gamlist, global = T, pairwise = T)
+  out <- sapply(lineages, lineage_specific_genes_v2, cds = cds, pattern = pattern, diffend = diffend, lineages = lineages, simplify = FALSE)
   cds@lineage_genes <- out
   cds 
 }
