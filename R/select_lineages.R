@@ -758,7 +758,7 @@ get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt =
 start = find_start_node(cds)
 if(lineage != FALSE){
 sub.graph = cds@graphs[[lineage]]
-sel.cells = cds@lineages[[lineage]][['name']]
+sel.cells = cds@lineages[[lineage]]
 }
 else{
 sel.cells = colnames(cds)
