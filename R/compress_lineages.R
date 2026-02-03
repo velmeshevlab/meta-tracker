@@ -40,6 +40,7 @@ compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, method = "sum",
   #Get pseudotime from the principal graph aux slot
   updated_pt <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
   #Store back in cds@lineages as a list
+  #need to add a new slot for updated pseudotime
   cell_barcodes <- cds@lineages[[lineage]]
   cds@lineages[[lineage]] <- list(
     name = cell_barcodes,
@@ -98,7 +99,6 @@ compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, method = "sum",
     d <-  (meta_sum_ordered$pseudotime - min(meta_sum_ordered$pseudotime))/(max(meta_sum_ordered$pseudotime)-min(meta_sum_ordered$pseudotime))
     print("Fitting curves scaled pseudotime")
     predict_pt <- seq(0, 1, length.out = N)
-    #fit_2 = pbsapply(mat, fit.m3_3, pt = d, size_factor = size_factor, predict_pt = predict_pt, lineage = lineage, model = model, N = N, cl = cores)
     mat_m <- as.matrix(mat)
     genes <- colnames(mat_m)
     fit_list_2 <- pbapply::pbsapply(setNames(seq_along(genes), genes),function(i) {
