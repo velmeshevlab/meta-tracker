@@ -274,19 +274,17 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, res = res, genes = NULL
     final_res
   }
   else{
-    res_sel = res
-    p_values_sel = as.matrix(res_sel[,"pvalue"])
-    rownames(p_values_sel) <- rownames(res_sel)
-    colnames(p_values_sel) <- paste0("pvalue_", test_lineage, "vs", lineages[lineages != test_lineage])
-    gene_names = rownames(p_values_sel)
+    res_sel = res[,c("waldStat", "pvalue")]
+    res_sel = as.matrix(res_sel)
+    gene_names = rownames(res_sel)
     FCs = calculate_dynamic_FC_single(cds, test_lineage, gene_names, lineages[lineages != test_lineage])
     FCs_sel = FCs
-    p_values_sel = p_values_sel[names(FCs_sel),]
-    final_res = as.data.frame(cbind(p_values_sel, FCs_sel))
-    colnames(final_res) <- c("meta_p", "average_FC")
+    res_sel = res_sel[names(FCs_sel),]
+    final_res = as.data.frame(cbind(res_sel, FCs_sel))
+    colnames(final_res) <- c("waldStat", "meta_p", "log2FC")
     lineage_genes = as.data.frame(final_res)
     if(length(lineage_genes) > 0){
-      lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(average_FC))), ]
+      lineage_genes = lineage_genes[with(lineage_genes, order(meta_p, -abs(log2FC))), ]
       lineage_genes
     }
     else{return(NULL)}
@@ -294,15 +292,15 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, res = res, genes = NULL
 }
 
 calculate_dynamic_FC_single <- function(cds, test_lineage, genes, comp_lineage){
-  genes = genes[genes %in% colnames(cds@expectation[[test_lineage]][["scaled"]])]
+  genes = genes[genes %in% colnames(cds@expectation[[test_lineage]])]
   FCs = sapply(genes, calculate_dynamic_FC_single_gene, cds = cds, test_lineage = test_lineage, comp_lineage = comp_lineage)
   names(FCs) <- genes
   FCs
 }
 
 calculate_dynamic_FC_single_gene <- function(gene, cds, test_lineage, comp_lineage){
-  exp1 = cds@expectation[[test_lineage]][["scaled"]]
-  exp2 = cds@expectation[[comp_lineage]][["scaled"]]
+  exp1 = cds@expectation[[test_lineage]]
+  exp2 = cds@expectation[[comp_lineage]]
   grid = seq(0, 1, length.out = nrow(exp1))
   auc_dataset1 <- trapz(grid, exp1[,gene])
   auc_dataset2 <- trapz(grid, exp2[,gene])
