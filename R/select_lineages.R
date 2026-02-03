@@ -756,7 +756,6 @@ find_start_node <- function(cds){
 
 get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = TRUE){
 start = find_start_node(cds)
-{
 if(lineage != FALSE){
 sub.graph = cds@graphs[[lineage]]
 sel.cells = cds@lineages[[lineage]]
@@ -793,7 +792,6 @@ if(recalculate_pt == TRUE){
   }
 return(cds_subset)
 }
-  }
 
 isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions = NULL, starting_clusters = NULL, subset = FALSE, N = 5, cl = 1){
   sub.graph = cds@graphs[[lineage]]
