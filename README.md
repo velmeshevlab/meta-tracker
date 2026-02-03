@@ -124,7 +124,7 @@ First, we filter out low expressed genes. Any gene expressed in at least 1% of s
   cds_F = cds_new[expressed_genes,]
 ```
 Here, we generate 1000 meta-cells along each trajectory. We use parallel processing to speed up this step. In this case, we don't care if the cells are from the same biological sample or now, hence ID = FALSE.
-It takes ~2 min per lineage for 275,000 cells and 15,000 genes.
+It takes ~5 min per lineage for 275,000 cells and 15,000 genes.
 ```
 cds_F = compress_lineage_v3_2(cds_F, "SST", method = "all", N = 1000, ID = FALSE)
 cds_F = compress_lineage_v3_2(cds_F, "SST_RELN", method = "all", N = 1000,ID = FALSE)
@@ -139,7 +139,7 @@ cds_F = compress_lineage_v3_2(cds_F, "NOS", method = "all", N = 1000, ID = FALSE
 ```
 ### 2.2. Now, we find genes that are dynamically expressed in each lineage. Takes ~15 min per lineage (275,000 cells and 15,000 genes).
 ```
-  cds_F <- within_lineage_DE_par(cds = cds_F, cores = 24)
+  cds_F <- within_lineage_DE_par(cds = cds_F)
 ```
 ### 2.3. Next, we can identify lineage-specific genes. We do it by comparing each lineage to all other lineages and calculating meta p value and average fold change.
 ###      We only keep the genes that have significant p values in all lineage comparisons and are also dynamically expressed.
