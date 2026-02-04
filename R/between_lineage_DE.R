@@ -339,7 +339,7 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, pattern, diffend, genes
     pattern_sel = pattern_sel[names(FCs_sel),]
     diffend_sel = diffend_sel[names(FCs_sel),]
     final_res = as.data.frame(cbind(pattern_sel, diffend_sel, FCs_sel))
-    colnames(final_res) <- c("waldStat_pattern", "meta_p_pattern", "waldStat_diffend", "meta_p_diffend", "log2FC")
+    colnames(final_res) <- c("waldStat_pattern", "meta_p_pattern", "waldStat_diffend", "meta_p_diffend", "average_FC")
     lineage_genes = as.data.frame(final_res)
     if(length(lineage_genes) > 0){
       lineage_genes
