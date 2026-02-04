@@ -254,7 +254,8 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cuto
       rank(-merged$waldStat_combined_pattern, ties.method = "min")^2 + rank(-merged$waldStat_combined_diffend, ties.method = "min")^2
     lineage_spec_genes <- merged[order(merged$transientScore), ]
     lineage_spec_genes$lineage <- rep(lineage, nrow(lineage_spec_genes))
-    lineage_spec_genes
+    lineage_spec <- list("pattern_filtered" = lineage_genes_p, "diffend_filtered" = lineage_genes_d, "combined" = lineage_spec_genes)
+    lineage_spec
   }
   else{
     pattern_genes['median_FC'] <- pattern_genes['average_FC_pattern']
@@ -277,7 +278,8 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cuto
       rank(-merged$waldStat_pattern, ties.method = "min")^2 + rank(-merged$waldStat_diffend, ties.method = "min")^2
     lineage_spec_genes <- merged[order(merged$transientScore), ]
     lineage_spec_genes$lineage <- rep(lineage, nrow(lineage_spec_genes))
-    lineage_spec_genes
+    lineage_spec <- list("pattern_filtered" = lineage_genes_p, "diffend_filtered" = lineage_genes_d, "combined" = lineage_spec_genes)
+    lineage_spec
   }
 }
 
