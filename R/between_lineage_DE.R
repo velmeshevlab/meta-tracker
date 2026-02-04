@@ -237,24 +237,31 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, pattern, diffend, genes
     p_list = c()
     p_names = c()
     wd_list = c()
+    fc_list = c()
     wd_names = c()
     fc_names = c()
+    flip_fc <- c()
     for(lineage in lineages){
       index2 = which(lineage == lineages)
       if(index != index2){
         if(index<index2){
           p_name = paste0("pvalue_", index, "vs", index2)
           wd_name = paste0("waldStat_", index, "vs", index2)
+          fc_name = paste0("logFC", index, "_", index2)
+          flip_fc <- c(flip_fc, FALSE) 
         }
         else{
           p_name = paste0("pvalue_", index2, "vs", index)
           wd_name = paste0("waldStat_", index2, "vs", index)
+          fc_name = paste0("logFC", index2, "_", index)
+          flip_fc <- c(flip_fc, TRUE)
         }
         p_name_new = paste0("pvalue_", test_lineage, "vs", lineage)
         wd_name_new = paste0("waldStat_", test_lineage, "vs", lineage)
         fc_name_new = paste0("log2FC_", test_lineage, "vs", lineage)
         p_list <- c(p_list, p_name)
         wd_list = c(wd_list, wd_name)
+        fc_list = c(fc_list, fc_name)
         p_names <- c(p_names, p_name_new)
         wd_names <- c(wd_names, wd_name_new)
         fc_names <- c(fc_names, fc_name_new)
@@ -263,88 +270,97 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, pattern, diffend, genes
     #pattern test result
     p_values_p = pattern[,p_list]
     wd_values = pattern[,wd_list]
+    combined_pvalue_pattern <- apply(p_values_p, 1, get_meta_p)
     ref <- rownames(pattern)
     
     p_values_p <- p_values_p[ref, , drop = FALSE]
     wd_values  <- wd_values[ref, , drop = FALSE]
+    combined_pvalue_pattern <- combined_pvalue_pattern[ref]
     
     stopifnot(
       identical(ref, rownames(p_values_p)),
-      identical(ref, rownames(wd_values))
+      identical(ref, rownames(wd_values)),
+      identical(ref, names(combined_pvalue_pattern))
     )
     
     pattern_sel <- cbind(
       pattern[, c(1, 3), drop = FALSE],
       p_values_p,
-      wd_values
+      wd_values,
+      combined_pvalue_pattern
     )
-    colnames(pattern_sel) <- c("waldStat_combined", "pvalue_combined", p_names, wd_names)
+    colnames(pattern_sel) <- c("waldStat_combined", "pvalue_combined", p_names, wd_names, "meta_p")
     colnames(pattern_sel) <- paste0(colnames(pattern_sel), "_pattern")
     #diffend tes result
     p_values_d = diffend[,p_list]
     wd_values = diffend[,wd_list]
-    ref <- rownames(diffend)
+    fc_values = diffend[,fc_list]
+    fc_values[, flip_fc] <- -fc_values[, flip_fc]
+    combined_pvalue_diffend <- apply(p_values_d, 1, get_meta_p)
+    average_FC = apply(fc_values, 1, get_average_FC)
     
+    ref <- rownames(diffend)
     p_values_d <- p_values_d[ref, , drop = FALSE]
     wd_values  <- wd_values[ref, , drop = FALSE]
-    
-    stopifnot(
+    fc_values  <- fc_values[ref, , drop = FALSE]
+    combined_pvalue_diffend <- combined_pvalue_diffend[ref]
+    average_FC <- average_FC[ref]
+   
+     stopifnot(
       identical(ref, rownames(p_values_d)),
-      identical(ref, rownames(wd_values))
+      identical(ref, rownames(wd_values)),
+      identical(ref, rownames(fc_values)),
+      identical(ref, names(combined_pvalue_diffend)),
+      identical(ref, names(average_FC))
     )
     
     diffend_sel <- cbind(
       diffend[, c(1, 3), drop = FALSE],
       p_values_d,
-      wd_values
+      wd_values,
+      combined_pvalue_diffend,
+      fc_values,
+      average_FC
     )
-    colnames(diffend_sel) <- c("waldStat_combined", "pvalue_combined", p_names, wd_names)
+    colnames(diffend_sel) <- c("waldStat_combined", "pvalue_combined", p_names, wd_names, "meta_p", fc_names, "average_FC")
     colnames(diffend_sel) <- paste0(colnames(diffend_sel), "_diffend")
     pattern_sel <- pattern_sel[rownames(diffend_sel), ]
-    res <- cbind(pattern_sel, diffend_sel)
-    res_sel = as.matrix(res)
-    if(nrow(res_sel) == 0){
-      return(NULL)
-    }
-    gene_names = rownames(res_sel)
+    #Calculate the FC for pattern_test
+    gene_names = rownames(pattern_sel)
     FCs = calculate_dynamic_FC(cds, test_lineage, gene_names, lineages)
     FCs = t(FCs)
     FCs_sel = FCs
-    colnames(FCs_sel) <- fc_names
-    res_sel = res_sel[rownames(FCs_sel),]
-    combined_pvalue_pattern <- apply(p_values_p, 1, get_meta_p)
-    combined_pvalue_diffend <- apply(p_values_d, 1, get_meta_p)
+    colnames(FCs_sel) <- paste0(fc_names, "_pattern")
+    pattern_sel = pattern_sel[rownames(FCs_sel),]
     average_FC = apply(FCs_sel, 1, get_average_FC)
-    #Reorder the rows
-    ref <- rownames(res_sel)
-    combined_pvalue_pattern <- combined_pvalue_pattern[ref]
-    combined_pvalue_diffend <- combined_pvalue_diffend[ref]
-    average_FC <- average_FC[ref]
+    average_FC <- average_FC[rownames(FCs_sel)]
     if (!identical(rownames(FCs_sel), names(average_FC))) {
       stop("Error: rownames(FCs_sel) and names(average_FC) do not match.")
     }
-    final_res = cbind(res_sel, FCs_sel, combined_pvalue_pattern, combined_pvalue_diffend, average_FC)
-    colnames(final_res) <- c(colnames(res_sel), colnames(FCs_sel), c("meta_p_pattern", "meta_p_diffend", "average_FC"))
-    final_res = as.data.frame(final_res)
+    pattern_fin = cbind(pattern_sel, FCs_sel, average_FC)
+    colnames(pattern_fin) <- c(colnames(pattern_sel), colnames(FCs_sel), "average_FC_pattern")
+    pattern_fin = as.data.frame(pattern_fin)
+    diffend_fin = as.data.frame(diffend_sel)
+    final_res = list("pattern_test" = pattern_fin, "diffend_test" = diffend_fin)
     final_res
   }
   else{
     pattern_sel = pattern[,c("waldStat", "pvalue")]
-    pattern_sel = as.matrix(pattern_sel)
-    diffend_sel = diffend[,c("waldStat", "pvalue")]
-    diffend_sel = as.matrix(diffend_sel)
+    diffend_sel = diffend[,c("waldStat", "pvalue", "logFC1_2")]
+    if (test_lineage == lineages[2]) {
+      diffend_sel$logFC1_2 <- -diffend_sel$logFC1_2
+    }
     gene_names = rownames(pattern_sel)
     FCs = calculate_dynamic_FC_single(cds, test_lineage, gene_names, lineages[lineages != test_lineage])
     FCs_sel = FCs
     pattern_sel = pattern_sel[names(FCs_sel),]
     diffend_sel = diffend_sel[names(FCs_sel),]
-    final_res = as.data.frame(cbind(pattern_sel, diffend_sel, FCs_sel))
-    colnames(final_res) <- c("waldStat_pattern", "meta_p_pattern", "waldStat_diffend", "meta_p_diffend", "average_FC")
-    lineage_genes = as.data.frame(final_res)
-    if(length(lineage_genes) > 0){
-      lineage_genes
-    }
-    else{return(NULL)}
+    pattern_fin = as.data.frame(cbind(pattern_sel, FCs_sel))
+    diffend_fin = as.data.frame(diffend_sel)
+    colnames(pattern_fin) <- c("waldStat_pattern", "meta_p_pattern", "average_FC_pattern")
+    colnames(diffend_fin) <- c("waldStat_diffend", "meta_p_diffend", "average_FC_diffend")
+    lineage_genes = list("pattern_test" = pattern_fin, "diffend_test" = diffend_fin)
+    lineage_genes
   }
 }
 
