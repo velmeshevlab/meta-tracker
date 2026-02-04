@@ -414,7 +414,7 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, pattern, diffend, genes
     lineage_genes
   }
 }
-
+                        
 calculate_dynamic_FC_single <- function(cds, test_lineage, genes, comp_lineage){
   genes = genes[genes %in% colnames(cds@expectation[[test_lineage]])]
   FCs = sapply(genes, calculate_dynamic_FC_single_gene, cds = cds, test_lineage = test_lineage, comp_lineage = comp_lineage)
