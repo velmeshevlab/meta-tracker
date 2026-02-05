@@ -145,13 +145,7 @@ cds_F = compress_lineage_v3_2(cds_F, "NOS", method = "all", N = 1000, ID = FALSE
 ###      We only keep the genes that have significant p values in all lineage comparisons and are also dynamically expressed.
 ```
   cds_F <- lineage_specific_genes_par(cds = cds_F)
-  write_lin_genes <- function(lineage, cds)
-  {
-  lin_genes = format_lineage_specific_genes(lineage, cds)
-  write.table(lin_genes, file = paste0(lineage, "_lin_genes.tsv"), sep = "\t", quote = F)
-  }
-  lineages = names(cds_F@lineages)
-  sapply(lineages, write_lin_genes, cds = cds_F)
+  cds_F <- format_lineage_genes(cds_F)
 ```
 ### 2.4. For most lineages, we don't want to only find genes specific to terminal cell types but also shared between related lineages (in this case, protoplasmic and fibrous astrocytes).
 ```
