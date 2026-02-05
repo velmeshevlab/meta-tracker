@@ -196,7 +196,7 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1, p
   final_out
 }
 
-format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cutoff = 0.2, dynamic_FC_cutoff = 0.1, dynamic_p_cutoff = 0.05, p_adjust = "BH", specificity = "high", dynamic_test = "Moran"){
+format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.2, dynamic_FC_cutoff = 0.1, dynamic_p_cutoff = 0.05, p_adjust = "BH", specificity = "high", dynamic_test = "Moran"){
   lineages = names(cds@lineages)
   pattern_genes = cds@lineage_genes[[lineage]]$pattern_test
   diffend_genes = cds@lineage_genes[[lineage]]$diffend_test
@@ -238,12 +238,12 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cuto
     diffend_genes$median_FC <- median_FC_d
     if(specificity == "high"){
       #lineage_genes_p = pattern_genes[(rowSums(FCs_p >= FC_cutoff) == ncol(FCs_p) | rowSums(FCs <= -FC_cutoff) == ncol(FCs)) & pattern_filtered$p_adjusted <= p_cutoff, ]
-      lineage_genes_p = pattern_genes[rowSums(FCs_p >= FC_cutoff) == ncol(FCs_p) & pattern_genes$p_adjusted <= p_cutoff, ]
-      lineage_genes_d = diffend_genes[rowSums(FCs_d >= FC_cutoff) == ncol(FCs_d) & diffend_genes$p_adjusted <= p_cutoff, ]
+      lineage_genes_p = pattern_genes[rowSums(FCs_p >= FC_pattern_cutoff) == ncol(FCs_p) & pattern_genes$p_adjusted <= p_cutoff, ]
+      lineage_genes_d = diffend_genes[rowSums(FCs_d >= FC_diffend_cutoff) == ncol(FCs_d) & diffend_genes$p_adjusted <= p_cutoff, ]
     }
     else{
-      lineage_genes_p = pattern_genes[pattern_genes$p_adjusted <= p_cutoff & pattern_genes$median_FC >= FC_cutoff, ]
-      lineage_genes_d = diffend_genes[diffend_genes$p_adjusted <= p_cutoff & diffend_genes$median_FC >= FC_cutoff, ]
+      lineage_genes_p = pattern_genes[pattern_genes$p_adjusted <= p_cutoff & pattern_genes$median_FC >= FC_pattern_cutoff, ]
+      lineage_genes_d = diffend_genes[diffend_genes$p_adjusted <= p_cutoff & diffend_genes$median_FC >= FC_diffend_cutoff, ]
     }
     gene = union(rownames(lineage_genes_p), rownames(lineage_genes_d))
     p_df <- pattern_genes[gene, c("waldStat_combined_pattern"), drop = FALSE]
@@ -261,12 +261,12 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_cuto
     pattern_genes['median_FC'] <- pattern_genes['average_FC_pattern']
     diffend_genes['median_FC'] <- diffend_genes['average_FC_diffend']
     if(specificity == "high"){
-      lineage_genes_p = pattern_genes[(pattern_genes$median_FC >= FC_cutoff) & pattern_genes$p_adjusted <= p_cutoff, ]
-      lineage_genes_d = diffend_genes[(diffend_genes$median_FC >= FC_cutoff) & diffend_genes$p_adjusted <= p_cutoff, ]
+      lineage_genes_p = pattern_genes[(pattern_genes$median_FC >= FC_pattern_cutoff) & pattern_genes$p_adjusted <= p_cutoff, ]
+      lineage_genes_d = diffend_genes[(diffend_genes$median_FC >= FC_diffend_cutoff) & diffend_genes$p_adjusted <= p_cutoff, ]
     }
     else{
-      lineage_genes_p = pattern_genes[(pattern_genes$median_FC >= FC_cutoff) & pattern_genes$p_adjusted <= p_cutoff, ]
-      lineage_genes_d = diffend_genes[(diffend_genes$median_FC >= FC_cutoff) & diffend_genes$p_adjusted <= p_cutoff, ]
+      lineage_genes_p = pattern_genes[(pattern_genes$median_FC >= FC_pattern_cutoff) & pattern_genes$p_adjusted <= p_cutoff, ]
+      lineage_genes_d = diffend_genes[(diffend_genes$median_FC >= FC_diffend_cutoff) & diffend_genes$p_adjusted <= p_cutoff, ]
       message("Same as high specificity test for 2 lineages")
     }
     gene = union(rownames(lineage_genes_p), rownames(lineage_genes_d))
