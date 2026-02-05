@@ -1,3 +1,21 @@
+format_lineage_genes <- function(cds){
+lineages <- names(cds@lineages)
+for (lineage in lineages) {
+  # 1. Generate the filtered genes
+  lin_genes <- format_lineage_specific_genes(lineage, cds)
+  
+  # 2. Get existing data
+  lineage_genes_orig <- cds_F@lineage_genes[[lineage]]
+  
+  # 3. Update the global object DIRECTLY
+  cds@lineage_genes[[lineage]] <- list(
+    "lineage_genes" = lineage_genes_orig, 
+    "filtered" = lin_genes
+  )
+}
+  cds
+}
+
 find_start_point <-function(graph_list){
   start_ends = c()
   for(graph_name in names(graph_list)){
@@ -196,7 +214,7 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1, p
   final_out
 }
 
-format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.2, dynamic_FC_cutoff = 0.1, dynamic_p_cutoff = 0.05, p_adjust = "BH", specificity = "high", dynamic_test = "Moran"){
+format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.2, dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05, p_adjust = "BH", specificity = "high", dynamic_test = "Moran"){
   lineages = names(cds@lineages)
   pattern_genes = cds@lineage_genes[[lineage]]$pattern_test
   diffend_genes = cds@lineage_genes[[lineage]]$diffend_test
@@ -207,13 +225,13 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_patt
   common_genes <- intersect(expressed_genes, rownames(diffend_genes))
   diffend_genes <- diffend_genes[common_genes, , drop = FALSE]
   #Second filter out genes that has p value >= 0.05 and moran's I statistics above 0.1
-  if(dynamic_FC_cutoff != F){
+  if(dynamic_I_cutoff != F){
     dynamic = cds@dynamic_genes[[lineage]]
     if(dynamic_test == "Moran"){
-      dynamic_genes = rownames(dynamic[dynamic$I >= dynamic_FC_cutoff & dynamic$padj <= dynamic_p_cutoff, ])
+      dynamic_genes = rownames(dynamic[dynamic$I >= dynamic_I_cutoff & dynamic$padj <= dynamic_p_cutoff, ])
     }
     else{
-      dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dynamic_FC_cutoff, ])
+      dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dynamic_I_cutoff, ])
     }
     common_genes <- intersect(dynamic_genes, rownames(pattern_genes))
     pattern_genes <- pattern_genes[common_genes, , drop = FALSE]
