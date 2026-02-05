@@ -219,7 +219,7 @@ format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_patt
   pattern_genes = cds@lineage_genes[[lineage]]$pattern_test
   diffend_genes = cds@lineage_genes[[lineage]]$diffend_test
   #First filter out genes that express in fewer than 100 cells
-  expressed_genes <- filter_by_expression(cds=cds, lineage=lineage, mode = "number", N = 100, ratio = 0.01)
+  expressed_genes <- filter_by_expression_lineage(cds=cds, lineage=lineage, mode = "number", N = 100, ratio = 0.01)
   common_genes <- intersect(expressed_genes, rownames(pattern_genes))
   pattern_genes <- pattern_genes[common_genes, , drop = FALSE]
   common_genes <- intersect(expressed_genes, rownames(diffend_genes))
