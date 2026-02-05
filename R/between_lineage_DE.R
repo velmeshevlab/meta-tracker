@@ -717,15 +717,12 @@ get_average_FC <- function(FC){
 
 get_meta_p <- function(Ps) {
   Ps <- Ps[!is.na(Ps)]
-  
-  # Replace zeros with a tiny positive number
   Ps[Ps == 0] <- .Machine$double.xmin
+  if (length(Ps) == 0) return(NA_real_)
   
-  if (length(Ps) >= 2) {
-    sumlog(Ps)$p
-  } else {
-    NA_real_  # Not enough p-values to combine
-  }
+  stat <- -2 * sum(log(Ps))
+  df <- 2 * length(Ps)
+  pchisq(stat, df=df, lower.tail=FALSE)
 }
 
 between_lineage_DE <- function(counts, # A matrix with genes in rows and cells in columns, cells should be aligned in the order of separate lineages
