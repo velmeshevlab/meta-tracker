@@ -144,32 +144,55 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1, p
   branch_genes = list()
   branch_gene_names = list()
   for(lineage in branches_1){
-    lineage_genes = cds@lineage_genes[[lineage]]
+    lineage_genes = cds@lineage_genes[[lineage]][["pattern_test"]]
+    #First filter out genes that express in fewer than 100 cells from lineages in both branches
+    expressed_genes <- filter_by_expression(cds=cds, lineage = lineage, mode = "number", N = 100, ratio = 0.01)
+    common_genes <- intersect(expressed_genes, rownames(lineage_genes))
+    lineage_genes <- lineage_genes[common_genes, , drop = FALSE]
+    #Second filter out genes that has p value >= 0.05 and moran's I statistics above 0.1
+    if(dynamic_FC_cutoff != F){
+      dynamic = cds@dynamic_genes[[lineage]]
+      if(dynamic_test == "Moran"){
+        dynamic_genes = rownames(dynamic[dynamic$I >= dynamic_FC_cutoff & dynamic$padj <= dynamic_p_cutoff, ])
+      }
+      else{
+        dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dynamic_FC_cutoff, ])
+      }
+      common_genes <- intersect(dynamic_genes, rownames(lineage_genes))
+      lineage_genes <- lineage_genes[common_genes, , drop = FALSE]
+    }
     FC_names = c()
     for(lin in branches_2){
-      FC_names = c(FC_names, paste0("FC_", lineage, "vs", lin))
+      FC_names = c(FC_names, paste0("log2FC_", lineage, "vs", lin, "_pattern"))
     }
     p_names = c()
     for(lin in branches_2){
-      p_names = c(p_names, paste0("pvalue_", lineage, "vs", lin))
+      p_names = c(p_names, paste0("pvalue_", lineage, "vs", lin, "_pattern"))
     }
-    if(dynamic_FC_cutoff != F){
-    dynamic = cds@dynamic_genes[[lineage]]
-    if(dynamic_test == "Moran"){
-      dynamic_genes = rownames(dynamic[dynamic$I >= dynamic_FC_cutoff & dynamic$padj < dynamic_p_cutoff, ])
-    }
-    else{
-      dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dynamic_FC_cutoff, ])
-    }
-    lineage_genes = lineage_genes[dynamic_genes,]
-    }
-    lineage_genes = lineage_genes[,c(p_names, FC_names, "meta_p", "average_FC")]
-    FCs = lineage_genes[,(length(branches_2)+1):(ncol(lineage_genes)-2)]
+    lineage_genes_filtered = lineage_genes[,c(p_names, FC_names)]
+    FCs = lineage_genes_filtered[,grepl("log2FC", colnames(lineage_genes_filtered))]
+    p_values <- lineage_genes_filtered[,grepl("pvalue", colnames(lineage_genes_filtered))]
     if(is.vector(FCs)){
-      lineage_spec_genes = lineage_genes[FCs >= FC_cutoff & lineage_genes$meta_p < p_cutoff, ]
+      #Third filter out genes with NA values in averageFC or p values
+      colnames(lineage_genes_filtered) <- c("meta_p", "averageFC")
+      lineage_genes_filtered <- lineage_genes_filtered[(!is.na(lineage_genes_filtered$meta_p) & !is.na(lineage_genes_filtered$averageFC)),]
+      lineage_genes_filtered$p_adjusted <- p.adjust(lineage_genes_filtered$meta_p, method = p_adjust)
+      lineage_spec_genes = lineage_genes_filtered[lineage_genes_filtered$averageFC >= FC_cutoff & lineage_genes_filtered$p_adjusted <= p_cutoff, ]
     }
     else{
-      lineage_spec_genes = lineage_genes[rowSums(FCs >= FC_cutoff) == ncol(FCs) & lineage_genes$meta_p < p_cutoff, ]
+      average_FC = apply(FCs, 1, get_average_FC)
+      meta_p <- apply(p_values, 1, get_meta_p)
+      ref <- rownames(lineage_genes_filtered)
+      col <- colnames(lineage_genes_filtered)
+      average_FC <- average_FC[ref]
+      meta_p <- meta_p[ref]
+      lineage_genes_filtered <- cbind(lineage_genes_filtered, average_FC, meta_p)
+      colnames(lineage_genes_filtered) <- c(col, "average_FC", "meta_p")
+      #Third filter out genes with NA values in averageFC or p values
+      lineage_genes_filtered <- lineage_genes_filtered[(!is.na(lineage_genes_filtered$meta_p) & !is.na(lineage_genes_filtered$average_FC)),]
+      lineage_genes_filtered$p_adjusted <- p.adjust(lineage_genes_filtered$meta_p, method = p_adjust)
+      FCs <- FCs[rownames(lineage_genes_filtered),]
+      lineage_spec_genes = lineage_genes_filtered[rowSums(FCs >= FC_cutoff) == ncol(FCs) & lineage_genes_filtered$p_adjusted <= p_cutoff, ]
     }
     branch_genes[[lineage]] <- lineage_spec_genes
     branch_gene_names[[lineage]] <- rownames(lineage_spec_genes)
@@ -181,39 +204,41 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1, p
     lineage_genes = branch_genes[[lineage]]
     FC_names = c()
     for(lin in branches_2){
-      FC_names = c(FC_names, paste0("FC_", lineage, "vs", lin))
+      FC_names = c(FC_names, paste0("log2FC_", lineage, "vs", lin, "_pattern"))
     }
-    FCs = lineage_genes[branch_gene_names, FC_names]
-    meta_p = lineage_genes[branch_gene_names,]$meta_p
-    meta_p_matrix = cbind(meta_p_matrix, meta_p)
-    if(is.vector(FCs)){
-      median_FC = FCs
+    p_names = c()
+    for(lin in branches_2){
+      p_names = c(p_names, paste0("pvalue_", lineage, "vs", lin, "_pattern"))
     }
-    else{
-      median_FC = apply(FCs, 1, median)
+    if(ncol(lineage_genes) <= 3){
+      FCs = lineage_genes[branch_gene_names, "averageFC", drop = FALSE]
+      p_values <- lineage_genes[branch_gene_names, "meta_p", drop = FALSE]
+    }else{
+      FCs = lineage_genes[branch_gene_names, FC_names]
+      p_values <- lineage_genes[branch_gene_names, p_names]
     }
-    median_FC_matrix = cbind(median_FC_matrix, median_FC)
+    meta_p_matrix = cbind(meta_p_matrix, p_values)
+    median_FC_matrix = cbind(median_FC_matrix, FCs)
   }
-  if(is.vector(FCs)){
-    meta_p = meta_p_matrix
-    median_FC = median_FC_matrix
-  }
-  else{
+  if(ncol(meta_p_matrix)==1){
+    meta_p <- setNames(meta_p_matrix[,1], rownames(meta_p_matrix))
+    median_FC <- setNames(median_FC_matrix[,1], rownames(median_FC_matrix))
+  }else{
     meta_p = apply(meta_p_matrix, 1, get_meta_p)
     median_FC = apply(median_FC_matrix, 1, median)
   }
   if(p_adjust != FALSE){
     meta_p <- p.adjust(meta_p, method = p_adjust)
   }
+  meta_p <- meta_p[names(median_FC)]
   final_out = cbind(meta_p, median_FC)
-  rownames(final_out) <- branch_gene_names
+  rownames(final_out) <- names(median_FC)
   final_out = as.data.frame(final_out)
   final_out$branch <- rep(names(branch_point)[branch_number], nrow(final_out))
   colnames(final_out) <- c("meta_p", "median_FC", "branch")
   final_out = final_out[with(final_out, order(-abs(median_FC), meta_p)), ]
   final_out
 }
-
 format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.2, dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05, p_adjust = "BH", specificity = "high", dynamic_test = "Moran"){
   lineages = names(cds@lineages)
   pattern_genes = cds@lineage_genes[[lineage]]$pattern_test
