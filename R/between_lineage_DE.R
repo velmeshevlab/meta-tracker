@@ -144,7 +144,7 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1, p
   branch_genes = list()
   branch_gene_names = list()
   for(lineage in branches_1){
-    lineage_genes = cds@lineage_genes[[lineage]][["pattern_test"]]
+    lineage_genes = cds@lineage_genes[[lineage]][["lineage_genes"]][["pattern_test"]]
     #First filter out genes that express in fewer than 100 cells from lineages in both branches
     expressed_genes <- filter_by_expression_lineage(cds=cds, lineage = lineage, mode = "number", N = 100, ratio = 0.01)
     common_genes <- intersect(expressed_genes, rownames(lineage_genes))
