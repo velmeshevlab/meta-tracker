@@ -279,3 +279,133 @@ plot_multiple <- function(cds, gene, lineages, meta = NULL, points = T, age.scal
   q <- q + monocle_theme_opts() + ylab("Expression") + xlab("Pseudotime") + ggtitle(gene) + theme(legend.key.size = unit(legend.key.size, 'cm'), plot.title = element_text(size = plot.title.size, face="bold", hjust = 0.5), axis.text=element_text(size=text.size), axis.text.x=element_text(angle = 60, hjust=1), axis.title=element_blank(), legend.text=element_text(size=legend.text.size), legend.title=element_text(size=text.size, face = "bold"), legend.position = legend_position)
   q
 }
+
+
+plot_all <- function(cds, gene, overlay = FALSE, custom_lineage_colors = NULL) {
+  library(ggplot2)
+  library(RColorBrewer)
+  library(colorspace)  # for darken()
+  
+  lineages <- names(cds@lineages)
+  n_lin <- length(lineages)
+  
+  numeric_suffix <- suppressWarnings(as.numeric(sub("^[^0-9]*", "", lineages)))
+  if (!all(is.na(numeric_suffix))) {
+    # Numeric suffix present, sort by it
+    ordered_lineages <- lineages[order(numeric_suffix)]
+  } else {
+    # Non-numeric names, keep dataset order
+    ordered_lineages <- lineages
+  }
+  
+  base_colors <- brewer.pal(9, "Blues")[-c(1,2)]  # remove pale colors
+  lineage_cols <- colorRampPalette(base_colors)(n_lin)
+  names(lineage_cols) <- ordered_lineages
+    
+  # Replace any lineage colors if user provided
+  if (!is.null(custom_lineage_colors)) {
+    for (lin in names(custom_lineage_colors)) {
+      if (lin %in% lineages) lineage_cols[lin] <- custom_lineage_colors[lin]
+    }
+  }
+  
+  # Darker colors for lines
+  lineage_cols_lines <- darken(lineage_cols, amount = 0.3)
+  
+  lineage_cols_points <- rev(lineage_cols)
+  names(lineage_cols_points) <- ordered_lineages
+  
+  first_lin <- lineages[1]
+  N <- nrow(cds@expression[[first_lin]]$mean)
+  pt_grid <- seq(0, 1, length.out = N)
+  df_list <- list()
+  for (lin in lineages) {
+    fit_mat <- cds@expectation[[lin]]
+    if (is.null(fit_mat)) next
+    if (!gene %in% colnames(fit_mat)) next
+    fit <- fit_mat[, gene]
+    if (all(is.na(fit))) next
+    fit <- log(fit + 1)
+    
+    ## Raw data
+    expr <- cds@expression[[lin]]$mean[[gene]]
+    expr <- log(expr + 1)   
+    pt   <- cds@pseudotime[[lin]]$scaled
+    keep <- !is.na(expr) & !is.na(pt)
+    if (sum(keep) == 0) next
+    
+    ## Points
+    df_points <- data.frame(
+      gene = gene,
+      lineage = lin,
+      pt = pt[keep],
+      expr = expr[keep],
+      type = "raw",
+      stringsAsFactors = FALSE
+    )
+    
+    ## Fitted line
+    df_fit <- data.frame(
+      gene = gene,
+      lineage = lin,
+      pt = pt_grid,
+      expr = fit,
+      type = "fit",
+      stringsAsFactors = FALSE
+    )
+    
+    df_list[[lin]] <- rbind(df_points, df_fit)
+  }
+  
+  if (length(df_list) == 0) stop("No valid data found for gene: ", gene)
+  df_all <- do.call(rbind, df_list)
+  
+  ## Order lineages for legend + facets
+  df_all$lineage <- factor(df_all$lineage, levels = ordered_lineages)
+  
+  p <- ggplot(df_all, aes(x = pt, y = expr))
+  df_points <- subset(df_all, type == "raw")
+  df_points$color_mirror <- lineage_cols_points[df_points$lineage]
+  
+  p <- p +
+    geom_point(
+      data = df_points,
+      aes(color = lineage),
+      color = df_points$color_mirror,
+      alpha = 0.8,
+      size = 1
+    )
+  
+  p <- p +
+    geom_line(
+      data = subset(df_all, type == "fit"),
+      aes(color = lineage),
+      linewidth = 2
+    )
+  
+  if (!overlay) {
+    p <- p + facet_wrap(~ lineage, scales = "free_y")
+  }
+  
+  p <- p +
+    scale_color_manual(values = lineage_cols) +
+    theme_classic(base_size = 12) +
+    theme(
+      legend.position = "right",
+      strip.background = element_blank(),
+      strip.text = element_text(face = "bold"),
+      axis.title.x = element_text(size = 12),
+      axis.title.y = element_text(size = 12),
+      axis.text.x = element_text(size = 12),
+      axis.text.y = element_text(size = 12),
+      plot.title = element_text(size = 14, face = "bold", hjust = 0.5)
+    ) +
+    labs(
+      title = gene,
+      x = "Pseudotime",
+      y = "log(Expression + 1)",
+      color = "Lineage"
+    )
+  
+  return(p)
+}
