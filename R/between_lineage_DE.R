@@ -520,7 +520,7 @@ lineage_specific_genes_par <- function(cds, lineages = names(cds@lineages), para
     lineage_list[[i]] <- metacells
     #pt = cds@pseudotime[[lineage]]
     pt = cds@expression[[lineage]][["sum"]]$pseudotime
-    pt <-  (pt - min(pt))/(max(pt)-min(pt))
+    pt <-  (pt - min(pt))/(max(pt) - min(pt))
     names(pt) <- metacells
     pt_list[[i]] <- pt
     i <- i + 1
