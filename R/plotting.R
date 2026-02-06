@@ -298,7 +298,7 @@ plot_all <- function(cds, gene, overlay = FALSE, custom_lineage_colors = NULL) {
     ordered_lineages <- lineages
   }
   
-  base_colors <- brewer.pal(9, "Blues")[-c(1,2)]  # remove pale colors
+  base_colors <- brewer.pal(9, "Blues")[-c(1,2,3)]  # remove pale colors
   lineage_cols <- colorRampPalette(base_colors)(n_lin)
   names(lineage_cols) <- ordered_lineages
     
