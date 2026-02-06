@@ -543,7 +543,7 @@ lineage_specific_genes_par <- function(cds, lineages = names(cds@lineages)){
   rownames(pseudotime) <- all_metacells
   counts = counts[rownames(cds),]
   print(paste0("Testing ", nrow(counts), " genes"))
-  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, offset = log(all_size_factor), parallel = parallel, BPPARAM = BPPARAM)
+  gamlist = tradeSeq::fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights, U = NULL, nknots = 6, offset = log(all_size_factor))
   pattern = tradeSeq::patternTest(models = gamlist, global = T, pairwise = T)
   diffend = tradeSeq::diffEndTest(models = gamlist, global = T, pairwise = T)
   out <- sapply(lineages, lineage_specific_genes_v2, cds = cds, pattern = pattern, diffend = diffend, lineages = lineages, simplify = FALSE)
