@@ -1092,5 +1092,18 @@ reorder_metrics_grouped <- function(df) {
   return(df)
 }
 
+quasi_test <- function(cds){
+  lineages <- names(cds@lineages)
+  res <- run_all_pairwise(cds=cds, lineage=lineages)
+  waldResOmnibus <- run_global_comparison(cds_F)
+  for (lin in lineages) {
+    out <- extract_lineage_df(res, lin)
+    waldResOmnibus <- waldResOmnibus[rownames(out),]
+    df <- cbind(waldResOmnibus, out)
+    cds@lineage_genes[[lin]]$lineage_genes$quasipoisson <- reorder_metrics_grouped(df)
+  }
+  return(cds)
+}
+
 
                           
