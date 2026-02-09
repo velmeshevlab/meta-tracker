@@ -1105,5 +1105,65 @@ quasi_test <- function(cds){
   return(cds)
 }
 
+fit.m3_3_wald <- function(exp.sel, pt, size_factor, predict_pt, model, N) {
+  if (!requireNamespace("speedglm", quietly = TRUE)) {
+    stop("speedglm not installed")
+  }
+  exp_data.sel <- data.frame(
+    pseudotime  = as.numeric(pt),
+    size_factor = as.numeric(size_factor),
+    expression  = as.numeric(exp.sel)
+  )
+  # Try to fit the model and extract wald components
+  result <- tryCatch({
+    # 1. Fit the model
+    fit_model <- speedglm::speedglm(
+      model,
+      data = exp_data.sel,
+      family = quasipoisson(),
+      acc = 1e-3,
+      model = TRUE, # We need this temporarily to extract terms
+      y = FALSE
+    )
+    grid_data <- data.frame(
+      pseudotime  = as.numeric(predict_pt),
+      size_factor = 1
+    )
+    pred <- predict(fit_model, newdata = grid_data, type = "response")
+    
+    n_coefs <- length(coef(fit_model))
+    # nPoints_wald <- 2 * (n_coefs - 1) # If nknots means just the spline bases
+    nPoints_wald <- 2 * n_coefs # If nknots means total parameters as per the user logic
+
+    grid_wald <- data.frame(
+      pseudotime = seq(0, 1, length.out = nPoints_wald), 
+      size_factor = 1
+    )
+    
+    model_terms <- terms(fit_model)
+    clean_terms <- delete.response(model_terms)
+    X_matrix <- model.matrix(clean_terms, data = grid_wald)
+    
+    list(
+      prediction = as.numeric(pred),
+      beta       = coef(fit_model),
+      vcov       = vcov(fit_model),
+      X          = X_matrix,
+      converged  = fit_model$convergence
+    )
+    
+  }, error = function(e) {
+    # Return NAs/NULLs if the gene fails to fit
+    list(
+      prediction = rep(NA_real_, N),
+      beta       = NULL,
+      vcov       = NULL,
+      X          = NULL,
+      converged  = FALSE
+    )
+  })
+  return(result)
+}
+
 
                           
