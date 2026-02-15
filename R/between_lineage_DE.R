@@ -239,6 +239,7 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1, p
   final_out = final_out[with(final_out, order(-abs(median_FC), meta_p)), ]
   final_out
 }
+                        
 format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05, FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.2, dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05, p_adjust = "BH", specificity = "high", dynamic_test = "Moran"){
   lineages = names(cds@lineages)
   pattern_genes = cds@lineage_genes[[lineage]]$pattern_test
@@ -827,11 +828,11 @@ prepare_pt <- function(cds, lineages){
   return(all_pt)
 }
 
-quasi_refit <- function(cds, cores = 1, N = 1000) {
+quasi_refit <- function(cds, cores = 1, N = 1000, nknot = 8) {
   lineage_names <- names(cds@lineages)
   #prepare interior knots and boundary knots
   pseudotime <- prepare_pt(cds, lineage_names)
-  interior_knots <- quantile(pseudotime, probs = seq(0, 1, length.out = 8)[-c(1, 8)])
+  interior_knots <- quantile(pseudotime, probs = seq(0, 1, length.out = nknot)[-c(1, nknot)])
   for (lineage in lineage_names) {
     message(paste("Processing lineage:", lineage))
     meta_sum_ordered <- cds@expression[[lineage]][["sum"]]
@@ -858,7 +859,7 @@ quasi_refit <- function(cds, cores = 1, N = 1000) {
   return(cds)
 }
 
-calculate_separate_wald <- function(fit_A, fit_B) {
+calculate_separate_wald <- function(fit_A, fit_B, l2fc= 0.4, eigenThresh = 1e-8) {
   # 1. Extract betas and vcovs
   betaA <- fit_A$beta
   betaB <- fit_B$beta
@@ -868,20 +869,22 @@ calculate_separate_wald <- function(fit_A, fit_B) {
   
   # 2. Calculate the difference (Contrast)
   estFC <- L %*% betaA - L %*% betaB
+  logFCCutoff <- log(2^l2fc) # log2 to log scale
+  est <- sign(estFC)*pmax(0, abs(estFC) - logFCCutoff) # zero or remainder
   
-  # 4. Calculate Combined Sigma (Independence assumption)
+  # 3. Calculate Combined Sigma (Independence assumption)
   # Sigma = L*VA*L' + L*VB*L'
   # Optimized as: L %*% (VA + VB) %*% t(L)
   sigma <- L %*% (VA + VB) %*% t(L)
   
-  # 5. Eigen-decomposition
+  # 4. Eigen-decomposition
   eSigma <- eigen(sigma, symmetric = TRUE)
   
-  # Determine rank using the PatternTest threshold
-  r <- try(sum(eSigma$values / eSigma$values[1] > 1e-8), silent = TRUE)
+  # 5. Determine rank using the PatternTest threshold
+  r <- try(sum(eSigma$values / eSigma$values[1] > eigenThresh), silent = TRUE)
   
   if (inherits(r, "try-error") || is.na(r) || r < 1) {
-    return(c(waldStat = NA, df = NA))
+    return(c(waldStat = NA, df = NA, p_val = NA, log2FC = NA, predictA = NA, predictB = NA))
   }
   
   if (r == 1) {
@@ -894,130 +897,336 @@ calculate_separate_wald <- function(fit_A, fit_B) {
     inv_sqrt_vals <- 1 / sqrt(eSigma$values[1:r])
     halfCovInv <- eSigma$vectors[, 1:r, drop = FALSE] %*% diag(inv_sqrt_vals, nrow = r)
   }
-  # Project the difference into the eigen-space
+  # 6. Project the difference into the eigen-space
   # t(halfCovInv) is (r x N), estFC is (N x 1) -> halfStat is (r x 1)
-  halfStat <- t(halfCovInv) %*% estFC
-  stat <- sum(halfStat^2) 
-  return(c(waldStat = as.numeric(stat), df = r))
+  halfStat <- t(halfCovInv) %*% est
+  stat <- sum(halfStat^2)
+  p_val   <- stats::pchisq(as.numeric(stat), df = r, lower.tail = FALSE)
+  # 7. Calculate the AUC between fit_A and fit_B
+  exp1 = fit_A$prediction
+  exp2 = fit_B$prediction
+  grid = seq(0, 1, length.out = length(exp1))
+  auc_dataset1 <- trapz(grid, exp1)
+  auc_dataset2 <- trapz(grid, exp2)
+  auc_difference <- log2(auc_dataset1/auc_dataset2)
+  pred_val_A <- auc_dataset1
+  pred_val_B <- auc_dataset2
+  return(c(waldStat = as.numeric(stat), df = r, p_val = p_val, log2FC = auc_difference, predictA = pred_val_A, predictB = pred_val_B))
 }
 
 run_pairwise_comparison <- function(list_A, list_B) {
-  # 1. Align the lists
+  # 1. Identify common genes
   common_genes <- intersect(names(list_A), names(list_B))
   if (length(common_genes) == 0) stop("No common genes found.")
   
   list_A <- list_A[common_genes]
   list_B <- list_B[common_genes]
-  
   message(paste("Processing", length(common_genes), "common genes..."))
   
-  # 2. Run the loop
+  # 2. Process genes in parallel
   results_list <- pbapply::pblapply(common_genes, function(gene) {
     fit_A <- list_A[[gene]]
     fit_B <- list_B[[gene]]
     
-    if (is.null(fit_A$beta) || is.null(fit_B$beta)) return(c(waldStat = NA, df = NA))
+    # Template for failure (ensuring column count consistency)
+    empty_res_p <- c(waldStat = NA, df = NA, p_val = NA, log2FC = NA, predictA = NA, predictB = NA)
+    empty_res_d <- c(waldStat = NA, df = NA, p_val = NA, log2FC = NA, predictA = NA, predictB = NA)
     
-    res <- tryCatch({
-      calculate_separate_wald(fit_A, fit_B)
-    }, error = function(e) {
-      return(c(waldStat = NA, df = NA))
-    })
-    return(res)
+    # --- Convergence and Null Checks ---
+    # Check if beta or vcov exists
+    total_failure <- is.null(fit_A$beta)  || is.null(fit_B$beta) || 
+      is.null(fit_A$vcov)  || is.null(fit_B$vcov) ||
+      isFALSE(fit_A$converged) || isFALSE(fit_B$converged)
+    
+    if (total_failure) {
+      return(list(pattern = empty_res_p, diffend = empty_res_d))
+    }
+    
+    # --- Statistical Tests ---
+    res_1 <- tryCatch({ 
+      calculate_separate_wald(fit_A, fit_B) 
+    }, error = function(e) empty_res_p)
+    
+    res_2 <- tryCatch({ 
+      calculate_separate_diff(fit_A, fit_B) 
+    }, error = function(e) empty_res_d)
+    
+    return(list(pattern = res_1, diffend = res_2))
   })
   
-  # 3. Format into a Data Frame
-  # do.call(rbind, ...) turns the list into a matrix
-  results_df <- as.data.frame(do.call(rbind, results_list))
-  rownames(results_df) <- common_genes
-  return(results_df)
+  # 3. Extract and format the Pattern Test Data Frame
+  pattern_df <- as.data.frame(do.call(rbind, lapply(results_list, `[[`, "pattern")))
+  rownames(pattern_df) <- common_genes
+  colnames(pattern_df) <- c("waldStat", "df", "pvalue", "log2FC", "predictA", "predictB")
+  
+  # 4. Extract and format the DiffEnd Test Data Frame
+  diffend_df <- as.data.frame(do.call(rbind, lapply(results_list, `[[`, "diffend")))
+  rownames(diffend_df) <- common_genes
+  colnames(diffend_df) <- c("waldStat", "df", "pvalue", "log2FC", "predictA", "predictB")
+  
+  # 5. Return as a list containing the two data frames
+  return(list(
+    pattern = pattern_df,
+    diffend = diffend_df
+  ))
 }
 
 
 run_all_pairwise <- function(cds, lineages) {
-  # 1. Get lineage names
+  # 1. Validation
   lineage_names <- lineages
-  if (length(lineage_names) < 2) stop("You need at least 2 lineages in the list.")
-  # 2. Generate all unique pairs (A vs B, B vs C, etc.)
-  # If length is 2, this only produces 1 pair.
+  if (length(lineage_names) < 2) {
+    stop("You need at least 2 lineages to perform pairwise comparisons.")
+  }
+  
+  # 2. Generate all unique pairs
   pairs <- combn(lineage_names, 2, simplify = FALSE)
-  all_results <- list()
+  
+  # 3. Storage for results
+  # We will store results in a nested list: results$pattern and results$diffend
+  final_pattern_list <- list()
+  final_diffend_list <- list()
+  
   for (pair in pairs) {
     l1 <- pair[1]
     l2 <- pair[2]
-    message(sprintf("\n>>> Comparing: %s vs %s", l1, l2))
-    # Run the existing logic
-    res <- run_pairwise_comparison(cds@expectation[[l1]], cds@expectation[[l2]])
-    pval <- stats::pchisq(res[, 1], df = res[, 2], lower.tail = FALSE)
-    # 2. Bind the p-value
-    res <- cbind(res, pval)
-    # Store with a unique key
     comp_name <- paste(l1, "vs", l2, sep = "_")
-    all_results[[comp_name]] <- res
+    
+    message(sprintf("\n>>> Comparing: %s vs %s", l1, l2))
+    
+    # 4. Run your existing comparison logic
+    # Assuming run_pairwise_comparison returns list(pattern = df, diffend = df)
+    res <- run_pairwise_comparison(cds@expectation[[l1]], cds@expectation[[l2]])
+    
+    # 5. Store the dataframes
+    final_pattern_list[[comp_name]] <- res$pattern
+    final_diffend_list[[comp_name]] <- res$diffend
   }
-  return(all_results)
+  
+  # 6. Return as a structured list
+  return(list(
+    pattern = final_pattern_list,
+    diffend = final_diffend_list
+  ))
 }
 
 
-calculate_global_wald <- function(fit_list, l2fc= 0, eigenThresh = 1e-2) {
-  k <- length(fit_list)
-  if (k < 2) return(c(waldStat = NA, df = NA))
-  # --- CRITICAL ADDITION: Check for overall health first ---
-  # Check if all fits in the list are valid for this specific gene
-  is_valid <- sapply(fit_list, function(x) !is.null(x$beta) && !is.null(x$vcov))
-  if (any(!is_valid)) {
-    # If even one fit failed, we cannot perform a global comparison
-    return(c(waldStat = NA, df = NA))
+calculate_global_wald <- function(fit_list, l2fc = 0.4, eigenThresh = 1e-2) {
+  
+  # 1. Filter for valid fits (Not NULL, have beta/vcov, and converged)
+  is_valid <- sapply(fit_list, function(x) {
+    !is.null(x) && 
+      !is.null(x$beta) && 
+      !is.null(x$vcov) && 
+      !isFALSE(x$converged)
+  })
+  
+  valid_fits <- fit_list[is_valid]
+  k_valid <- length(valid_fits)
+  
+  # 2. Need at least two valid lineages to perform a comparison
+  if (k_valid < 2) {
+    return(c(waldStat = NA, df = NA, pvalue = NA))
   }
   
-  # 1. Setup
-  L_single <- as.matrix(fit_list[[1]]$X) # Assumes X is consistent
+  # 3. Setup using only valid lineages
+  # Assuming X is consistent across all lineages, take it from the first valid one
+  L_single <- as.matrix(valid_fits[[1]]$X) 
   n_points <- nrow(L_single)
   n_params <- ncol(L_single)
   
-  # 2. Stack Betas and create Block-Diagonal Sigma
-  # Now these lines are safe because we checked for NULLs above:
-  beta_stack <- do.call(rbind, lapply(fit_list, function(x) as.matrix(x$beta)))
-  V_block <- as.matrix(Matrix::bdiag(lapply(fit_list, function(x) x$vcov)))
+  # 3. Stack Betas and create Block-Diagonal Sigma
+  beta_stack <- do.call(rbind, lapply(valid_fits, function(x) as.matrix(x$beta)))
+  V_block <- as.matrix(Matrix::bdiag(lapply(valid_fits, `[[`, "vcov")))
   
-  # 3. Create the Omnibus Contrast Matrix (L_omni) - (Same as before)
-  L_omni <- matrix(0, nrow = (k - 1) * n_points, ncol = k * n_params)
-  for (i in 2:k) {
+  # 4. Create the Omnibus Contrast Matrix (L_omni) for k_valid lineages
+  # This compares Valid Lineage 1 against Lineages 2...k_valid
+  L_omni <- matrix(0, nrow = (k_valid - 1) * n_points, ncol = k_valid * n_params)
+  
+  for (i in 2:k_valid) {
     row_idx <- ((i - 2) * n_points + 1):((i - 1) * n_points)
+    
+    # Reference (The first valid lineage)
     L_omni[row_idx, 1:n_params] <- L_single
+    
+    # Comparison (The i-th valid lineage)
     col_idx <- ((i - 1) * n_params + 1):(i * n_params)
     L_omni[row_idx, col_idx] <- -L_single
   }
   
-  # 4. Calculate Global Difference and Sigma
+  # 5. Calculate Global Difference and Sigma
   estFC <- L_omni %*% beta_stack
-  logFCCutoff <- log(2^l2fc) # log2 to log scale
-  est <- sign(estFC)*pmax(0, abs(estFC) - logFCCutoff) # zero or remainder
+  logFCCutoff <- log(2^l2fc) 
+  est <- sign(estFC) * pmax(0, abs(estFC) - logFCCutoff) 
   
   sigma <- L_omni %*% V_block %*% t(L_omni)
-  # 5. Eigen-decomposition for Rank-Deficient Inverse (Same as before)
+  
+  # 6. Eigen-decomposition for Rank-Deficient Inverse
   eSigma <- eigen(sigma, symmetric = TRUE)
-  r <- try(sum(eSigma$values / eSigma$values[1] > eigenThresh), silent = TRUE)
-
-  if (inherits(r, "try-error") || is.na(r) || r < 1) {
-    return(c(waldStat = NA, df = NA))
+  
+  # 7. Avoid division by zero if max eigenvalue is non-positive
+  max_ev <- eSigma$values[1]
+  if (is.na(max_ev) || max_ev <= 0) {
+    return(c(waldStat = NA, df = NA, pvalue = NA))
   }
   
-  # 6. Calculate the Wald Statistic (Same as before)
+  r <- try(sum(eSigma$values / max_ev > eigenThresh), silent = TRUE)
+  
+  if (inherits(r, "try-error") || is.na(r) || r < 1) {
+    return(c(waldStat = NA, df = NA, pvalue = NA))
+  }
+  
+  # 8. Calculate the Wald Statistic
+  inv_sqrt_vals <- 1 / sqrt(eSigma$values[1:r])
   if (r == 1) {
-    halfCovInv <- eSigma$vectors[, 1, drop = FALSE] * (1 / sqrt(eSigma$values[1]))
+    halfCovInv <- eSigma$vectors[, 1, drop = FALSE] * inv_sqrt_vals
   } else {
-    inv_sqrt_vals <- 1 / sqrt(eSigma$values[1:r])
     halfCovInv <- eSigma$vectors[, 1:r, drop = FALSE] %*% diag(inv_sqrt_vals, nrow = r)
   }
+  
   halfStat <- t(halfCovInv) %*% est
   stat <- sum(halfStat^2)
-  return(c(waldStat = as.numeric(stat), df = r))
+  p_val <- stats::pchisq(as.numeric(stat), df = r, lower.tail = FALSE)
+  
+  return(c(waldStat = as.numeric(stat), df = r, pvalue = p_val))
 }
 
+calculate_separate_diff <- function(fit_A, fit_B, l2fc = 0.1, eigenThresh = 1e-2) {
+  # 1. Extract parameters
+  betaA <- fit_A$beta
+  betaB <- fit_B$beta
+  VA <- fit_A$vcov
+  VB <- fit_B$vcov
+  
+  # 2. L is the contrast
+  L <- matrix(as.numeric(fit_A$X_end), ncol = 1)
+  
+  # 3. Combined Variance-Covariance Matrix
+  Sigma <- VA + VB
+  
+  # 4. Project Difference and Variance into Contrast Space
+  # estFC is the actual log-natural difference
+  beta_diff <- betaA - betaB
+  estFC <- t(L) %*% beta_diff
+  
+  # 5. sigma is the variance of that difference
+  sigma <- t(L) %*% Sigma %*% L
+  
+  # 6. Apply the LFC Threshold (The tradeSeq "FC" logic)
+  logFCCutoff <- log(2^l2fc)
+  est <- sign(estFC) * pmax(0, abs(estFC) - logFCCutoff)
+  
+  # 7. Eigendecomposition Method (tradeSeq Stability Logic)
+  eSigma <- eigen(sigma, symmetric = TRUE)
+  
+  # 8. Determine rank based on eigenvalue threshold
+  # We use the ratio of eigenvalues to the maximum eigenvalue
+  r <- sum(eSigma$values / eSigma$values[1] > eigenThresh)
+  
+  # 9. Handle cases where the matrix is numerically zero or invalid
+  if (r == 0 || is.na(r)) {
+    return(c(waldStat = NA, df = NA, p_val = NA, log2FC = NA, predictA = NA, predictB = NA))
+  }
+  
+  # 10. Compute the pseudo-inverse component (halfCovInv)
+  # This follows: halfCovInv = Vectors * diag(1/sqrt(Values))
+  halfCovInv <- eSigma$vectors[, seq_len(r), drop = FALSE] %*% 
+    diag(1 / sqrt(eSigma$values[seq_len(r)]), nrow = r)
+  
+  # 11. Final Wald Statistic
+  # stat = t(est) %*% Sigma_Inv %*% est
+  halfStat <- t(est) %*% halfCovInv
+  wald_stat <- as.numeric(crossprod(t(halfStat)))
+  
+  # 12. Degrees of Freedom and P-value
+  df_wald <- r
+  p_val <- stats::pchisq(wald_stat, df = df_wald, lower.tail = FALSE)
+  
+  # 13. Convert natural log FC to Log2FC for reporting
+  log2FC_val <- as.numeric(estFC / log(2))
+  
+  pred_val_A <- fit_A$prediction[length(fit_A$prediction)]
+  pred_val_B <- fit_B$prediction[length(fit_B$prediction)]
+  
+  return(c(waldStat = wald_stat, df = df_wald, p_val = p_val, log2FC = log2FC_val, predictA = pred_val_A, predictB = pred_val_B))
+}
 
+calculate_global_diffend <- function(list_of_fits, l2fc = 0.1, eigenThresh = 1e-2) {
+  
+  # 1. Filter for valid fits (Not NULL, have beta/vcov, and converged)
+  is_valid <- sapply(list_of_fits, function(x) {
+    !is.null(x) && 
+      !is.null(x$beta) && 
+      !is.null(x$vcov) && 
+      !isFALSE(x$converged)
+  })
+  
+  valid_fits <- list_of_fits[is_valid]
+  n_valid <- length(valid_fits)
+  
+  # 2. Need at least two lineages to compare differences
+  if (n_valid < 2) {
+    return(c(waldStat = NA, df = NA, pvalue = NA))
+  }
+  
+  # 3. Setup Dimensions using valid fits only
+  K <- length(valid_fits[[1]]$beta)
+  beta_all  <- do.call(c, lapply(valid_fits, `[[`, "beta"))
+  Sigma_all <- as.matrix(Matrix::bdiag(lapply(valid_fits, `[[`, "vcov")))
+  
+  # 3. Build the Global Contrast Matrix (L)
+  # We compare valid lineages 2, 3, ... N against valid lineage 1
+  L_cols <- list()
+  X_end  <- as.numeric(valid_fits[[1]]$X_end) 
+  
+  for (i in 2:n_valid) {
+    l_vec <- rep(0, length(beta_all))
+    l_vec[1:K] <- X_end                # Reference (First valid lineage)
+    
+    start_idx <- ((i - 1) * K) + 1
+    end_idx   <- i * K
+    l_vec[start_idx:end_idx] <- -X_end # Comparison (Lineage i)
+    
+    L_cols[[i-1]] <- l_vec
+  }
+  L_global <- do.call(cbind, L_cols)
+  
+  # 4. Project Differences and Variance
+  estFC_vec <- t(L_global) %*% beta_all
+  sigma_mat <- t(L_global) %*% Sigma_all %*% L_global
+  
+  # 5. Apply the LFC Threshold
+  logFCCutoff <- log(2^l2fc)
+  est_shrunk <- sign(estFC_vec) * pmax(0, abs(estFC_vec) - logFCCutoff)
+  
+  # 6. Eigendecomposition Method
+  eSigma <- eigen(sigma_mat, symmetric = TRUE)
+  max_ev <- eSigma$values[1]
+  
+  if (is.na(max_ev) || max_ev <= 0) {
+    return(c(waldStat = NA, df = NA, pvalue = NA))
+  }
+  
+  r <- sum(eSigma$values / max_ev > eigenThresh)
+  
+  if (is.na(r) || r < 1) {
+    return(c(waldStat = NA, df = NA, pvalue = NA))
+  }
+  
+  # 7. Compute Pseudo-inverse component
+  halfCovInv <- eSigma$vectors[, seq_len(r), drop = FALSE] %*% 
+    diag(1 / sqrt(eSigma$values[seq_len(r)]), nrow = r)
+  
+  # 8. Final Wald Statistic
+  halfStat <- t(est_shrunk) %*% halfCovInv
+  wald_stat <- as.numeric(crossprod(t(halfStat)))
+  
+  # 9. Result
+  return(c(waldStat = wald_stat, df = r, pvalue = stats::pchisq(wald_stat, df = r, lower.tail = FALSE)))
+}
+                                      
+                                      
 run_global_comparison <- function(cds) {
-  # lineage_data_list is list(P=list_p, F=list_f, M=list_m)
   lineage_data_list <- cds@expectation
   common_genes <- Reduce(intersect, lapply(lineage_data_list, names))
   
@@ -1025,22 +1234,38 @@ run_global_comparison <- function(cds) {
     # Extract the fit for this gene from every lineage
     fits_for_gene <- lapply(lineage_data_list, function(lin) lin[[gene]])
     
-    # Run the global function
-    res <- tryCatch({
+    # Run the global Pattern test (using your calculate_global_wald)
+    res_pattern <- tryCatch({
       calculate_global_wald(fits_for_gene)
     }, error = function(e) {
-      return(c(waldStat = NA, df = NA))
+      return(c(waldStat = NA, df = NA, pvalue = NA))
     })
-    return(res)
+    
+    # Run the global DiffEnd test (using your calculate_global_diffend)
+    res_diffend <- tryCatch({
+      calculate_global_diffend(fits_for_gene)
+    }, error = function(e) {
+      return(c(waldStat = NA, df = NA, pvalue = NA))
+    })
+    
+    return(list(pattern = res_pattern, diffend = res_diffend))
   })
   
-  results_df <- as.data.frame(do.call(rbind, results_list))
-  rownames(results_df) <- common_genes
+  # 1. Format Pattern results
+  # We use lapply to extract the "pattern" element from each list item
+  pattern_df <- as.data.frame(do.call(rbind, lapply(results_list, `[[`, "pattern")))
+  rownames(pattern_df) <- common_genes
   
-  results_df$pvalue <- stats::pchisq(results_df$waldStat, df = results_df$df, lower.tail = FALSE)
-  results_df
+  # 2. Format DiffEnd results
+  # We use lapply to extract the "diffend" element from each list item
+  diffend_df <- as.data.frame(do.call(rbind, lapply(results_list, `[[`, "diffend")))
+  rownames(diffend_df) <- common_genes
   
-  return(results_df)
+  # 3. Return as a named list
+  return(list(
+    pattern = pattern_df,
+    diffend = diffend_df
+  ))
 }
 
 extract_lineage_df <- function(res, lineage) {
@@ -1051,71 +1276,175 @@ extract_lineage_df <- function(res, lineage) {
   })
   sub_res <- res[keep]
   if (length(sub_res) == 0) return(NULL)
+  
   out_list <- list()
   for (i in seq_along(sub_res)) {
     name <- names(sub_res)[i]
     df   <- sub_res[[i]]
+    
     parts <- strsplit(name, "_vs_")[[1]]
-    a <- parts[1]
-    b <- parts[2]
-    other <- if (a == lineage) b else a
+    a <- parts[1] # The original 'Reference' (predictA)
+    b <- parts[2] # The original 'Comparison' (predictB)
+    
+    # If the lineage we are interested in was 'b', it was the 'Comparison'.
+    # To make it the 'Reference', we must flip FC and swap predictA/B values.
+    if (lineage == b) {
+      # 1. Flip log2FC
+      if ("log2FC" %in% colnames(df)) {
+        df$log2FC <- -df$log2FC
+      }
+      
+      # 2. Swap PredictA and PredictB values
+      if ("predictA" %in% colnames(df) && "predictB" %in% colnames(df)) {
+        temp_A <- df$predictA
+        df$predictA <- df$predictB
+        df$predictB <- temp_A
+      }
+      
+      other <- a
+    } else {
+      other <- b
+    }
+    
     new_name <- paste0(lineage, "_vs_", other)
-    colnames(df) <- paste0(new_name, "_", colnames(df))
+    # Rename columns to include the comparison name for clarity
+    colnames(df) <- paste0(colnames(df), "_", new_name)
     out_list[[new_name]] <- df
   }
+  
   names(out_list) <- NULL
+  # Combine all pairwise comparisons for this lineage into one wide data frame
   out <- do.call(cbind, out_list)
   return(out)
 }
 
-reorder_metrics_grouped <- function(df) {
+reorder_metrics_grouped <- function(df, type) {
   cn <- colnames(df)
+  
+  # 1. Identify global columns
   global_cols <- c("waldStat", "pvalue", "df")
   global_present <- global_cols[global_cols %in% cn]
-  pairwise <- setdiff(cn, global_present)
-  base_names <- sub("_(waldStat|pval|pvalue|df)$", "", pairwise)
-  second_lineage_num <- as.numeric(sub("ExN", "", sub(".*_vs_", "", base_names)))
-  comp_order <- base_names[!duplicated(base_names)]
-  comp_order <- comp_order[order(second_lineage_num[!duplicated(base_names)])]
-
-  wald_cols <- paste0(comp_order, "_waldStat")
-  pval_cols <- paste0(comp_order, "_pval")
-  pval_cols[!pval_cols %in% pairwise] <- paste0(comp_order[!pval_cols %in% pairwise], "_pvalue") # fallback
-  df_cols   <- paste0(comp_order, "_df")
-
-  wald_cols <- wald_cols[wald_cols %in% cn]
-  pval_cols <- pval_cols[pval_cols %in% cn]
-  df_cols   <- df_cols[df_cols %in% cn]
   
-  final_order <- c(global_present, wald_cols, pval_cols, df_cols)
+  # Identify pairwise columns (everything else)
+  pairwise <- setdiff(cn, global_present)
+  
+  # 2. Extract base comparison names
+  # Logic: Remove the metric prefix (waldStat_|pvalue_|df_|log2FC_) 
+  # AND remove the suffix (_diffend)
+  # Result should be "ExN12_vs_ExN2", etc.
+  base_names <- sub("^(waldStat_|pvalue_|df_|log2FC_|predictA_|predictB_)", "", pairwise)
+  unique_comps <- unique(base_names)
+  
+  # 3. NATURAL SORT (ExN2 before ExN10)
+  if (requireNamespace("gtools", quietly = TRUE)) {
+    comp_order <- gtools::mixedsort(unique_comps)
+  } else {
+    comp_order <- sort(unique_comps)
+  }
+  
+  # 4. Reconstruct columns in grouped order
+  # Structure: metric_COMP_diffend
+  wald_cols   <- paste0("waldStat_", comp_order)
+  pval_cols   <- paste0("pvalue_",   comp_order)
+  df_cols     <- paste0("df_",       comp_order)
+  l2fc_cols   <- paste0("log2FC_",   comp_order)
+  predict_A_cols   <- paste0("predictA_",   comp_order)
+  predict_B_cols   <- paste0("predictB_",   comp_order)
+  
+  # Filter for columns that actually exist
+  ordered_pairwise <- c(wald_cols, pval_cols, df_cols, l2fc_cols, predict_A_cols, predict_B_cols)
+  ordered_pairwise <- ordered_pairwise[ordered_pairwise %in% cn]
+  
+  # 5. Final Order
+  final_order <- c(global_present, ordered_pairwise)
   df <- df[, final_order, drop = FALSE]
+  cn_fin <- colnames(df)
+  # Check if name is exactly waldStat, pvalue, or df
+  is_global <- cn_fin %in% c("waldStat", "pvalue", "df")
+  if(type == "pattern"){
+    colnames(df) <- ifelse(is_global, 
+                           paste0(cn_fin, "_combined_pattern"), 
+                           paste0(cn_fin, "_pattern"))
+    colnames(df) <- gsub("_vs_", "vs", colnames(df))
+  }
+  if(type == "diffend"){
+    colnames(df) <- ifelse(is_global, 
+                           paste0(cn_fin, "_combined_diffend"), 
+                           paste0(cn_fin, "_diffend"))
+    
+  }
+  colnames(df) <- gsub("_vs_", "vs", colnames(df))
   return(df)
 }
 
 quasi_test <- function(cds){
   lineages <- names(cds@lineages)
-  res <- run_all_pairwise(cds=cds, lineage=lineages)
-  waldResOmnibus <- run_global_comparison(cds_F)
+  
+  # Both 'res' and 'waldResOmnibus' are now lists with names 'pattern' and 'diffend'
+  res <- run_all_pairwise(cds, lineages)
+  waldResOmnibus <- run_global_comparison(cds)
+  
   for (lin in lineages) {
-    out <- extract_lineage_df(res, lin)
-    waldResOmnibus <- waldResOmnibus[rownames(out),]
-    df <- cbind(waldResOmnibus, out)
-    cds@lineage_genes[[lin]]$lineage_genes$quasipoisson <- reorder_metrics_grouped(df)
+    # 1. Extract pairwise dataframes for this lineage
+    # Assuming 'extract_lineage_df' handles one test type at a time
+    out_pattern <- extract_lineage_df(res$pattern, lin)
+    out_diffend <- extract_lineage_df(res$diffend, lin)
+    
+    # 2. Match rows with the Global (Omnibus) results for each test
+    # This ensures genes align across Global and Pairwise results
+    global_p <- waldResOmnibus$pattern[rownames(out_pattern), ]
+    global_d <- waldResOmnibus$diffend[rownames(out_diffend), ]
+    
+    df_pattern <- cbind(global_p, out_pattern)
+    df_diffend <- cbind(global_d, out_diffend)
+    
+    cds@lineage_genes[[lin]] <- list() 
+    cds@lineage_genes[[lin]]$lineage_genes <- list()
+    
+    # 3. Reorder metrics and store as a list of 2 dataframes
+    # Reusing 'reorder_metrics_grouped' which now handles the 'global_' prefix
+    pattern_test = reorder_metrics_grouped(df_pattern, type = "pattern")
+    fc_cols <- grep("^log2FC_.*_pattern$", colnames(pattern_test), value = TRUE)
+    if (length(fc_cols) == 1) {
+      # Direct assignment is much faster than apply
+      pattern_test$average_FC_pattern <- pattern_test[[fc_cols]]
+    } else {
+      # Use apply for multiple columns
+      pattern_test$average_FC_pattern <- apply(pattern_test[, fc_cols], 1, get_average_FC)
+    }
+    diffend_test = reorder_metrics_grouped(df_diffend, type = "diffend")
+    fc_cols <- grep("^log2FC_.*_diffend$", colnames(diffend_test), value = TRUE)
+    if (length(fc_cols) == 1) {
+      # Direct assignment is much faster than apply
+      diffend_test$average_FC_diffend <- diffend_test[[fc_cols]]
+    } else {
+      # Use apply for multiple columns
+      diffend_test$average_FC_diffend <- apply(diffend_test[, fc_cols], 1, get_average_FC)
+    }
+    
+    cds@lineage_genes[[lin]]$lineage_genes$quasipoisson <- list(
+      pattern_test = pattern_test,
+      diffend_test = diffend_test
+    )
   }
   return(cds)
 }
 
 fit.m3_3_wald <- function(exp.sel, pt, size_factor, predict_pt, model, N) {
+  
   if (!requireNamespace("speedglm", quietly = TRUE)) {
     stop("speedglm not installed")
   }
+  
   exp_data.sel <- data.frame(
     pseudotime  = as.numeric(pt),
     size_factor = as.numeric(size_factor),
     expression  = as.numeric(exp.sel)
   )
+  
   # Try to fit the model and extract wald components
   result <- tryCatch({
+    
     # 1. Fit the model
     fit_model <- speedglm::speedglm(
       model,
@@ -1125,30 +1454,43 @@ fit.m3_3_wald <- function(exp.sel, pt, size_factor, predict_pt, model, N) {
       model = TRUE, # We need this temporarily to extract terms
       y = FALSE
     )
+    
+    # 2. Get Predicted Values (y-hat) for the 100 points
     grid_data <- data.frame(
       pseudotime  = as.numeric(predict_pt),
       size_factor = 1
     )
     pred <- predict(fit_model, newdata = grid_data, type = "response")
     
+    # Determine number of points for Wald stats: 2 * nknots (number of coefficients)
     n_coefs <- length(coef(fit_model))
     # nPoints_wald <- 2 * (n_coefs - 1) # If nknots means just the spline bases
     nPoints_wald <- 2 * n_coefs # If nknots means total parameters as per the user logic
-
+    
+    # 2. Wald Grid (100 points for the statistics)
+    # This is what you use for the p-value math
     grid_wald <- data.frame(
       pseudotime = seq(0, 1, length.out = nPoints_wald), 
       size_factor = 1
     )
     
+    end_pt_value <- 1
+    df_end <- data.frame(pseudotime = end_pt_value, size_factor = 1)
+    
+    # 3. Extract Basis Matrix (X) for the 100 points
+    # This ensures the Wald test uses the same basis as the fit
     model_terms <- terms(fit_model)
     clean_terms <- delete.response(model_terms)
     X_matrix <- model.matrix(clean_terms, data = grid_wald)
+    X_end <- model.matrix(clean_terms, data = df_end)
     
+    # 4. Return all pieces needed for Wald
     list(
       prediction = as.numeric(pred),
       beta       = coef(fit_model),
       vcov       = vcov(fit_model),
       X          = X_matrix,
+      X_end      = X_end,
       converged  = fit_model$convergence
     )
     
@@ -1159,11 +1501,12 @@ fit.m3_3_wald <- function(exp.sel, pt, size_factor, predict_pt, model, N) {
       beta       = NULL,
       vcov       = NULL,
       X          = NULL,
+      X_end      = NULL,
       converged  = FALSE
     )
   })
+  
   return(result)
 }
-
 
                           
