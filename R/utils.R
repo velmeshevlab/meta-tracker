@@ -413,11 +413,13 @@ getEigenStatGAMFC <- function(beta, Sigma, L, l2fc, eigenThresh = 1e-2){
   sigma <- t(L) %*% Sigma %*% L
   eSigma <- eigen(sigma, symmetric = TRUE)
   r <- try(sum(eSigma$values / eSigma$values[1] > eigenThresh), silent = TRUE)
-  if (is(r,"try-error")) {
+  if (is(r, "try-error") || is.na(r) || r < 1) {
     return(c(NA, NA))
   }
-  if (r == 1) return(c(NA, NA)) # CHECK
-  halfCovInv <- eSigma$vectors[, seq_len(r)] %*% (diag(1 / sqrt(eSigma$values[seq_len(r)])))
+  #if (r == 1) return(c(NA, NA)) # CHECK
+  #halfCovInv <- eSigma$vectors[, seq_len(r)] %*% (diag(1 / sqrt(eSigma$values[seq_len(r)])))
+  halfCovInv <- eSigma$vectors[, seq_len(r), drop = FALSE] %*% 
+              diag(1 / sqrt(eSigma$values[seq_len(r)]), nrow = r, ncol = r)
   halfStat <- t(est) %*% halfCovInv
   stat <- crossprod(t(halfStat))
   return(c(stat, r))
