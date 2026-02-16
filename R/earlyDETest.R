@@ -169,7 +169,7 @@
         betaAll <- rowData(models)$tradeSeq$beta[[1]]
         sigmaAll <- rowData(models)$tradeSeq$Sigma
         l2fc <- 0.2
-        eigenThresh <- 1e-2
+        eigenThresh <- 1e-8
         waldResPair <- lapply(seq_len(nrow(models)), function(ii){
           beta <- t(betaAll[ii,])
           Sigma <- sigmaAll[[ii]]
