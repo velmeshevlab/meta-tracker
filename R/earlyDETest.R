@@ -2,7 +2,7 @@
 
 
 .earlyDETest <- function(models, knots, nPoints = 2 * nknots(models), global = TRUE,
-                        pairwise = FALSE, l2fc = 0, eigenThresh = 1e-2){
+                        pairwise = FALSE, l2fc = 0.2, eigenThresh = 1e-2){
 
   if (is(models, "list")) {
     sce <- FALSE
@@ -106,6 +106,8 @@
     } else if (sce) {
       betaAll <- rowData(models)$tradeSeq$beta[[1]]
       sigmaAll <- rowData(models)$tradeSeq$Sigma
+      l2fc <- 0.2
+      eigenThresh <- 1e-2
       waldResOmnibus <- lapply(seq_len(nrow(models)), function(ii){
         beta <- t(betaAll[ii,])
         Sigma <- sigmaAll[[ii]]
@@ -166,11 +168,13 @@
         L <- t(X1 - X2)
         betaAll <- rowData(models)$tradeSeq$beta[[1]]
         sigmaAll <- rowData(models)$tradeSeq$Sigma
+        l2fc <- 0.2
+        eigenThresh <- 1e-2
         waldResPair <- lapply(seq_len(nrow(models)), function(ii){
           beta <- t(betaAll[ii,])
           Sigma <- sigmaAll[[ii]]
           if (any(is.na(beta))) return(c(NA, NA))
-          getEigenStatGAM(beta, Sigma, L)
+          getEigenStatGAMFC(beta, Sigma, L, l2fc, eigenThresh)
         })
       }
       # tidy output
