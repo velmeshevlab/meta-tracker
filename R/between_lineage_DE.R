@@ -481,7 +481,7 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, model, pattern, diffend
     pattern_sel <- pattern_sel[rownames(diffend_sel), ]
     #Calculate the FC for pattern_test
     gene_names = rownames(pattern_sel)
-    FCs = calculate_FC_tradeseq(models = gamlist, test_lineage = test_lineage, lineages = lineages, fc_names = fc_names, genes = gene_names, N = 1000)
+    FCs = calculate_FC_tradeseq(models = model, test_lineage = test_lineage, lineages = lineages, fc_names = fc_names, genes = gene_names, N = 1000)
     FCs_sel <- FCs
     pattern_sel = pattern_sel[rownames(FCs_sel),]
     average_FC = apply(FCs_sel, 1, get_average_FC)
@@ -504,7 +504,7 @@ lineage_specific_genes_v2 <- function(test_lineage, cds, model, pattern, diffend
       diffend_sel$logFC1_2 <- -diffend_sel$logFC1_2
     }
     gene_names = rownames(pattern_sel)
-    FCs = calculate_FC_tradeseq(models = model, test_lineage = test_lineage, lineages = lineages, genes = gene_names)
+    FCs = calculate_FC_tradeseq(models = model, test_lineage = test_lineage, lineages = lineages, genes = gene_names, N = 1000)
     FCs_sel = FCs
     pattern_sel = pattern_sel[rownames(FCs_sel),]
     diffend_sel = diffend_sel[rownames(FCs_sel),]
