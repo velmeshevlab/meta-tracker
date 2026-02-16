@@ -289,52 +289,54 @@ plot_all <- function(cds, gene, overlay = FALSE, custom_lineage_colors = NULL) {
   lineages <- names(cds@lineages)
   n_lin <- length(lineages)
   
+  # Order lineages numerically if they have numeric suffixes
   numeric_suffix <- suppressWarnings(as.numeric(sub("^[^0-9]*", "", lineages)))
   if (!all(is.na(numeric_suffix))) {
-    # Numeric suffix present, sort by it
     ordered_lineages <- lineages[order(numeric_suffix)]
   } else {
-    # Non-numeric names, keep dataset order
     ordered_lineages <- lineages
   }
   
-  base_colors <- brewer.pal(9, "Blues")[-c(1,2,3)]  # remove pale colors
+  # Colors
+  base_colors <- brewer.pal(9, "Blues")[-c(1,2,3)]
   lineage_cols <- colorRampPalette(base_colors)(n_lin)
   names(lineage_cols) <- ordered_lineages
-    
-  # Replace any lineage colors if user provided
+  
   if (!is.null(custom_lineage_colors)) {
     for (lin in names(custom_lineage_colors)) {
       if (lin %in% lineages) lineage_cols[lin] <- custom_lineage_colors[lin]
     }
   }
   
-  # Darker colors for lines
   lineage_cols_lines <- darken(lineage_cols, amount = 0.3)
-  
   lineage_cols_points <- rev(lineage_cols)
   names(lineage_cols_points) <- ordered_lineages
   
+  # Grid for fitted lines
   first_lin <- lineages[1]
-  N <- nrow(cds@expression[[first_lin]]$mean)
+  N <- if (!is.null(cds@pseudotime[[first_lin]]$scaled)) length(cds@pseudotime[[first_lin]]$scaled) else 100
   pt_grid <- seq(0, 1, length.out = N)
+  
   df_list <- list()
+  
   for (lin in lineages) {
-    fit_mat <- cds@expectation[[lin]]
-    if (is.null(fit_mat)) next
-    if (!gene %in% colnames(fit_mat)) next
-    fit <- fit_mat[, gene]
-    if (all(is.na(fit))) next
+    
+    # Skip if gene missing
+    if (is.null(cds@expectation[[lin]][[gene]])) next
+    
+    # Fitted values
+    fit <- cds@expectation[[lin]][[gene]][["prediction"]]
+    if (is.null(fit) || all(is.na(fit))) next
     fit <- log(fit + 1)
     
-    ## Raw data
+    # Raw data
     expr <- cds@expression[[lin]]$mean[[gene]]
-    expr <- log(expr + 1)   
-    pt   <- cds@pseudotime[[lin]]$scaled
+    expr <- log(expr + 1)
+    
+    pt <- cds@pseudotime[[lin]]$scaled
     keep <- !is.na(expr) & !is.na(pt)
     if (sum(keep) == 0) next
     
-    ## Points
     df_points <- data.frame(
       gene = gene,
       lineage = lin,
@@ -344,7 +346,6 @@ plot_all <- function(cds, gene, overlay = FALSE, custom_lineage_colors = NULL) {
       stringsAsFactors = FALSE
     )
     
-    ## Fitted line
     df_fit <- data.frame(
       gene = gene,
       lineage = lin,
@@ -360,9 +361,9 @@ plot_all <- function(cds, gene, overlay = FALSE, custom_lineage_colors = NULL) {
   if (length(df_list) == 0) stop("No valid data found for gene: ", gene)
   df_all <- do.call(rbind, df_list)
   
-  ## Order lineages for legend + facets
   df_all$lineage <- factor(df_all$lineage, levels = ordered_lineages)
   
+  # Plot
   p <- ggplot(df_all, aes(x = pt, y = expr))
   df_points <- subset(df_all, type == "raw")
   df_points$color_mirror <- lineage_cols_points[df_points$lineage]
@@ -374,9 +375,7 @@ plot_all <- function(cds, gene, overlay = FALSE, custom_lineage_colors = NULL) {
       color = df_points$color_mirror,
       alpha = 0.8,
       size = 1
-    )
-  
-  p <- p +
+    ) +
     geom_line(
       data = subset(df_all, type == "fit"),
       aes(color = lineage),
