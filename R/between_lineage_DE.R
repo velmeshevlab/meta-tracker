@@ -1720,7 +1720,7 @@ get_bp_specific_alignments <- function(cds, lineages, bp_results, fixed_targets)
         ln <- new_bounds[i]; un <- new_bounds[i+1]
         
         # Segment mask logic [lower, upper) for first, [lower, upper] for last
-        mask <- if(i == 1) (pt_meta >= lr & pt_meta <= ur) else (pt_meta >= lr & pt_meta <= ur)
+        mask <- if(i == 1) (pt_meta >= lr & pt_meta < ur) else (pt_meta >= lr & pt_meta <= ur)
         
         if (any(mask) && (ur > lr)) {
           pt_norm[mask] <- (pt_meta[mask] - lr) / (ur - lr) * (un - ln) + ln
