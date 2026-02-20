@@ -614,3 +614,71 @@ plot_lineage_alignment_raw <- function(cds, lineages, gene, bp_id = NULL,
   
   return(p)
 }
+
+get_plotting_data <- function(cds, lineage, gene, bp_id = NULL) {
+  # 1. Get Raw Expression (Logged)
+  expr_val <- log(cds@expression[[lineage]]$mean[[gene]] + 1)
+  
+  # Helper to create the 1000-point fit data frame
+  get_fit_df <- function(lin, bp_slot) {
+    # Path: cds@expectation -> lineage -> branch/slot -> gene -> prediction
+    fit <- cds@expectation[[lin]][[bp_slot]][[gene]]$prediction
+    
+    if (is.null(fit)) return(NULL)
+    clean_bp <- sub("aligned_", "", bp_slot)
+    return(data.frame(
+      PT = seq(0, 1, length.out = 1000), # Evenly spaced grid
+      Expression = log(fit + 1),
+      Lineage = lin,
+      Axis = clean_bp,
+      Type = "Fit"
+    ))
+  }
+  
+  # 2. Case A: No BP specified (Raw Scaled PT)
+  if (is.null(bp_id)) {
+    pt_val <- as.numeric(cds@pseudotime[[lineage]]$scaled)
+    return(data.frame(
+      PT = pt_val, 
+      Expression = expr_val, 
+      Lineage = lineage, 
+      Axis = "Evenly scaled Pseudotime",
+      Type = "Raw"
+    ))
+  }
+  
+  # 3. Case B: "all" branch points
+  if (bp_id == "all") {
+    all_slots <- names(cds@pseudotime[[lineage]]$streched)
+    if (length(all_slots) == 0) return(NULL)
+    
+    combined_list <- lapply(all_slots, function(slot) {
+      # Raw data at specific (non-even) pseudotimes
+      clean_bp <- sub("aligned_", "", slot)
+      df_raw <- data.frame(
+        PT = cds@pseudotime[[lineage]]$streched[[slot]],
+        Expression = expr_val,
+        Lineage = lineage,
+        Axis = clean_bp,
+        Type = "Raw"
+      )
+      # Fit data on 1000-point even grid
+      df_fit <- get_fit_df(lineage, slot)
+      return(rbind(df_raw, df_fit))
+    })
+    return(do.call(rbind, combined_list))
+    
+  } else {
+    # 4. Case C: One specific BP
+    slot_name <- if(grepl("aligned_", bp_id)) bp_id else paste0("aligned_", bp_id)
+    pt_val <- cds@pseudotime[[lineage]]$streched[[slot_name]]
+    clean_bp <- sub("aligned_", "", slot_name)
+    if (is.null(pt_val)) return(NULL)
+    
+    df_raw <- data.frame(PT = pt_val, Expression = expr_val, Lineage = lineage, 
+                         Axis = clean_bp, Type = "Raw")
+    df_fit <- get_fit_df(lineage, slot_name)
+    
+    return(rbind(df_raw, df_fit))
+  }
+}
