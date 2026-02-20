@@ -661,3 +661,42 @@ compress_3 <- function(df, length, unique, ID, n, N, l){
   }
   exp.comp <- unlist(exp.comp)
 }
+
+get_lineage_object_2 <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = TRUE){
+  start = find_start_node(cds)
+  if(lineage != FALSE){
+    sub.graph = cds@graphs[[lineage]]
+    sel.cells = cds@lineages[[lineage]][["name"]]
+  }
+  else{
+    sel.cells = colnames(cds)
+  }
+  sel.cells = sel.cells[sel.cells %in% colnames(cds)]
+  nodes_UMAP = cds@principal_graph_aux[["UMAP"]]$dp_mst
+  if(N != FALSE){
+    if(N < length(sel.cells)){
+      sel.cells = sample(sel.cells, N)
+    }
+  }
+  #subset the moncole object
+  cds_subset = cds[,sel.cells]
+  #set the graph, node and cell UMAP coordinates
+  if(lineage == FALSE){
+    sub.graph = principal_graph(cds_subset)[["UMAP"]]
+  }
+  cds_subset@principal_graph[["UMAP"]] <- sub.graph
+  cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[,names(V(sub.graph))]
+  cds_subset@clusters[["UMAP"]]$partitions <- cds_subset@clusters[["UMAP"]]$partitions[colnames(cds_subset)]
+  #recalculate closest vertex for the selected cells
+  cells_UMAP = as.data.frame(reducedDims(cds_subset)[["UMAP"]])
+  colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
+  closest_vertex = apply(cells_UMAP[,c("UMAP_1", "UMAP_2")], 1, calculate_closest_vertex, nodes = as.matrix(nodes_UMAP[,names(V(sub.graph))]))
+  closest_vertex = as.data.frame(closest_vertex)
+  cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
+  if(recalculate_pt == TRUE){
+    source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
+    cds_subset <- project2MST(cds_subset, project_point_to_line_segment, F, T, "UMAP", nodes_UMAP[,names(V(sub.graph))])
+    cds_subset <- order_cells(cds_subset, root_pr_nodes = start)
+  }
+  return(cds_subset)
+}
