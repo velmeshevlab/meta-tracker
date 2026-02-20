@@ -621,13 +621,28 @@ get_plotting_data <- function(cds, lineage, gene, bp_id = NULL) {
   
   # Helper to create the 1000-point fit data frame
   get_fit_df <- function(lin, bp_slot) {
-    # Path: cds@expectation -> lineage -> branch/slot -> gene -> prediction
-    fit <- cds@expectation[[lin]][[bp_slot]][[gene]]$prediction
+    # Check if the lineage and branch point slot exist in expectation
+    # 1. Is the lineage even in the expectation list?
+    if (!(lin %in% names(cds@expectation))) return(NULL)
     
+    # 2. Get the branch names for this lineage
+    bp_names <- names(cds@expectation[[lin]])
+    
+    # 3. If bp_names is NULL or the specific slot isn't there, STOP and return NULL
+    if (is.null(bp_names) || !(bp_slot %in% bp_names)) {
+      return(NULL)
+    }
+    
+    # 4. Now it is safe to check the gene
+    gene_data <- cds@expectation[[lin]][[bp_slot]]
+    if (!(gene %in% names(gene_data))) return(NULL)
+    
+    fit <- gene_data[[gene]]$prediction
     if (is.null(fit)) return(NULL)
+    
     clean_bp <- sub("aligned_", "", bp_slot)
     return(data.frame(
-      PT = seq(0, 1, length.out = 1000), # Evenly spaced grid
+      PT = seq(0, 1, length.out = 1000),
       Expression = log(fit + 1),
       Lineage = lin,
       Axis = clean_bp,
@@ -653,7 +668,6 @@ get_plotting_data <- function(cds, lineage, gene, bp_id = NULL) {
     if (length(all_slots) == 0) return(NULL)
     
     combined_list <- lapply(all_slots, function(slot) {
-      # Raw data at specific (non-even) pseudotimes
       clean_bp <- sub("aligned_", "", slot)
       df_raw <- data.frame(
         PT = cds@pseudotime[[lineage]]$streched[[slot]],
@@ -662,7 +676,7 @@ get_plotting_data <- function(cds, lineage, gene, bp_id = NULL) {
         Axis = clean_bp,
         Type = "Raw"
       )
-      # Fit data on 1000-point even grid
+      # If fit is NULL, only df_raw is returned via rbind
       df_fit <- get_fit_df(lineage, slot)
       return(rbind(df_raw, df_fit))
     })
@@ -673,10 +687,18 @@ get_plotting_data <- function(cds, lineage, gene, bp_id = NULL) {
     slot_name <- if(grepl("aligned_", bp_id)) bp_id else paste0("aligned_", bp_id)
     pt_val <- cds@pseudotime[[lineage]]$streched[[slot_name]]
     clean_bp <- sub("aligned_", "", slot_name)
+    
     if (is.null(pt_val)) return(NULL)
     
-    df_raw <- data.frame(PT = pt_val, Expression = expr_val, Lineage = lineage, 
-                         Axis = clean_bp, Type = "Raw")
+    df_raw <- data.frame(
+      PT = pt_val, 
+      Expression = expr_val, 
+      Lineage = lineage, 
+      Axis = clean_bp, 
+      Type = "Raw"
+    )
+    
+    # If get_fit_df returns NULL, only df_raw is kept
     df_fit <- get_fit_df(lineage, slot_name)
     
     return(rbind(df_raw, df_fit))
