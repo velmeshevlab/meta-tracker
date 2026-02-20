@@ -408,3 +408,209 @@ plot_all <- function(cds, gene, overlay = FALSE, custom_lineage_colors = NULL) {
   
   return(p)
 }
+
+plot_lineage_alignment <- function(cds, lineages, gene, bp_id = NULL, 
+                                   overlay = FALSE,
+                                   targets = fixed_targets,
+                                   custom_lineage_colors = NULL) {
+  # 1. Collect data
+  plot_df <- do.call(rbind, lapply(lineages, function(lin) {
+    get_plotting_data(cds, lin, gene, bp_id)
+  }))
+  
+  if (is.null(plot_df) || nrow(plot_df) == 0) stop("No data found.")
+  
+  # --- Lineage Ordering (Numerical) ---
+  all_lineage_names <- names(cds@lineages)
+  nums <- as.numeric(gsub("[^0-9]", "", all_lineage_names))
+  ordered_lineages <- if (!all(is.na(nums))) all_lineage_names[order(nums)] else sort(all_lineage_names)
+  
+  # Colors
+  n_lin <- length(ordered_lineages)
+  base_colors <- brewer.pal(9, "Blues")[-c(1,2,3)]
+  lineage_cols <- colorRampPalette(base_colors)(n_lin)
+  names(lineage_cols) <- ordered_lineages
+  
+  if (!is.null(custom_lineage_colors)) {
+    for (lin in names(custom_lineage_colors)) {
+      if (lin %in% names(lineage_cols)) lineage_cols[lin] <- custom_lineage_colors[lin]
+    }
+  }
+  lineage_cols_lines <- darken(lineage_cols, amount = 0.3)
+  lineage_cols_points <- rev(lineage_cols)
+  names(lineage_cols_points) <- ordered_lineages
+  
+  # Set factor levels for legend order
+  plot_df$Lineage <- factor(plot_df$Lineage, levels = ordered_lineages)
+  
+  # 2. Numeric Sorting for Axis Factor
+  unique_axes <- unique(as.character(plot_df$Axis))
+  ax_nums <- as.numeric(gsub("[^0-9]", "", unique_axes))
+  if (!all(is.na(ax_nums))) {
+    plot_df$Axis <- factor(plot_df$Axis, levels = unique_axes[order(ax_nums)])
+  }
+  
+  # 3. Construct Dynamic Title
+  clean_bp_names <- if(!is.null(bp_id)) sub("aligned_", "", bp_id) else "Raw"
+  if (is.null(bp_id)) {
+    title_text <- paste("Alignment:", gene, "| Raw Pseudotime")
+  } else if (identical(bp_id, "all")) {
+    title_text <- paste("Gene:", gene, "| All Branch Points")
+  } else {
+    title_text <- paste0("Gene: ", gene, " | BP: ", paste(clean_bp_names, collapse = ", "))
+  }
+  
+  # 4. Prepare Vertical Line Data
+  v_lines <- data.frame(
+    Axis = sub("aligned_", "", names(targets)),
+    TargetPos = as.numeric(targets)
+  )
+  
+  # 5. Build Base Plot
+  df_points <- subset(plot_df, Type == "Raw")
+  df_points$color_mirror <- lineage_cols_points[df_points$Lineage]
+  
+  p <- ggplot(plot_df, aes(x = PT, y = Expression)) +
+    geom_point(data = df_points, 
+               aes(color = Lineage),
+               color = df_points$color_mirror,
+               size = 0.8, alpha = 0.3) +
+    geom_line(data = subset(plot_df, Type == "Fit"), 
+              aes(color = Lineage),
+              linewidth = 1.2) +
+    scale_color_manual(values = lineage_cols) +
+    labs(title = title_text,
+         x = "Stretched Pseudotime (0-1)",
+         y = "log(Expression + 1)") +
+    theme_classic(base_size = 12) +
+    theme(
+      legend.position = "right",
+      strip.background = element_blank(),
+      strip.text = element_text(face = "bold"),
+      plot.title = element_text(size = 14, face = "bold", hjust = 0.5)
+    )
+  
+  # 6. Refined Faceting & Overlay Logic
+  if (!is.null(bp_id)) {
+    v_lines_sub <- v_lines[v_lines$Axis %in% levels(plot_df$Axis), ]
+    num_axes <- length(levels(plot_df$Axis))
+    
+    if (!overlay) {
+      if (num_axes > 1) {
+        # Scenario 1: Multiple BPs selected, show them in separate BP boxes
+        p <- p + facet_wrap(~Axis)
+      } else {
+        # Scenario 2: Single BP selected, show each Lineage in its own box
+        p <- p + facet_wrap(~Lineage)
+      }
+      
+      # Add vertical lines to the facets
+      p <- p + geom_vline(data = v_lines_sub, aes(xintercept = TargetPos), 
+                          linetype = "dashed", color = "black", alpha = 0.5)
+      
+    } else {
+      # Scenario 3: Overlay is TRUE (all BPs and all Lineages on one plot)
+      p <- p + geom_vline(data = v_lines_sub, aes(xintercept = TargetPos), 
+                          linetype = "dashed", color = "black", alpha = 0.4)
+      
+      if (num_axes > 1) {
+        p <- p + labs(subtitle = "Overlay Mode: Multiple Branch Points")
+      }
+    }
+  }
+  
+  
+  return(p)
+}
+
+plot_lineage_alignment_raw <- function(cds, lineages, gene, bp_id = NULL, 
+                                       overlay = FALSE,
+                                       targets = fixed_targets,
+                                       custom_lineage_colors = NULL) {
+  # 1. Collect data (Assuming get_plotting_data still returns the 'Raw' rows)
+  plot_df <- do.call(rbind, lapply(lineages, function(lin) {
+    get_plotting_data(cds, lin, gene, bp_id)
+  }))
+  
+  if (is.null(plot_df) || nrow(plot_df) == 0) stop("No data found.")
+  
+  # Filter to ensure we only have Raw points (in case get_plotting_data still returns Fit)
+  plot_df <- subset(plot_df, Type == "Raw")
+  
+  # --- Numerical Lineage Ordering for Legend ---
+  present_lineages <- unique(as.character(plot_df$Lineage))
+  nums <- as.numeric(gsub("[^0-9]", "", present_lineages))
+  ordered_lineages <- if (!all(is.na(nums))) present_lineages[order(nums)] else sort(present_lineages)
+  
+  # Colors
+  n_lin <- length(ordered_lineages)
+  base_colors <- brewer.pal(9, "Blues")[-c(1,2,3)]
+  lineage_cols <- colorRampPalette(base_colors)(n_lin)
+  names(lineage_cols) <- ordered_lineages
+  
+  if (!is.null(custom_lineage_colors)) {
+    for (lin in names(custom_lineage_colors)) {
+      if (lin %in% names(lineage_cols)) lineage_cols[lin] <- custom_lineage_colors[lin]
+    }
+  }
+  
+  # Set factor levels for numerical sorting in legend
+  plot_df$Lineage <- factor(plot_df$Lineage, levels = ordered_lineages)
+  
+  # 2. Numerical Sorting for Axis Factor (Branch Points)
+  unique_axes <- unique(as.character(plot_df$Axis))
+  ax_nums <- as.numeric(gsub("[^0-9]", "", unique_axes))
+  if (!all(is.na(ax_nums))) {
+    plot_df$Axis <- factor(plot_df$Axis, levels = unique_axes[order(ax_nums)])
+  }
+  
+  # 3. Dynamic Title
+  clean_bp_names <- if(!is.null(bp_id)) sub("aligned_", "", bp_id) else "Raw"
+  title_text <- if (identical(bp_id, "all")) {
+    paste("Raw Alignment:", gene, "| All Branches")
+  } else {
+    paste0("Raw Alignment: ", gene, " | BP: ", paste(clean_bp_names, collapse = ", "))
+  }
+  
+  # 4. Vertical Line Data
+  v_lines <- data.frame(
+    Axis = sub("aligned_", "", names(targets)),
+    TargetPos = as.numeric(targets)
+  )
+  
+  # 5. Build Plot (Points Only)
+  p <- ggplot(plot_df, aes(x = PT, y = Expression, color = Lineage)) +
+    geom_point(size = 0.8, alpha = 0.3) +
+    scale_color_manual(values = lineage_cols) +
+    labs(title = title_text,
+         x = "Stretched Pseudotime (0-1)",
+         y = "log(Expression + 1)") +
+    theme_classic(base_size = 12) +
+    theme(
+      legend.position = "right",
+      strip.background = element_blank(),
+      strip.text = element_text(face = "bold"),
+      plot.title = element_text(size = 14, face = "bold", hjust = 0.5)
+    )
+  
+  # 6. Faceting Logic
+  if (!is.null(bp_id)) {
+    v_lines_sub <- v_lines[v_lines$Axis %in% levels(plot_df$Axis), ]
+    num_axes <- length(levels(plot_df$Axis))
+    
+    if (!overlay) {
+      # Multi-branch: facet by Branch. Single-branch: facet by Lineage.
+      if (num_axes > 1) { p <- p + facet_wrap(~Axis) } 
+      else { p <- p + facet_wrap(~Lineage) }
+      
+      p <- p + geom_vline(data = v_lines_sub, aes(xintercept = TargetPos), 
+                          linetype = "dashed", color = "black", alpha = 0.5)
+    } else {
+      # Overlay everything in one box
+      p <- p + geom_vline(data = v_lines_sub, aes(xintercept = TargetPos), 
+                          linetype = "dashed", color = "black", alpha = 0.4)
+    }
+  }
+  
+  return(p)
+}
