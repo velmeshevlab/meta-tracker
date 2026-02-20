@@ -1641,4 +1641,471 @@ filter_fin <- function(cds, lineage){
   return(merged)
 }
 
+get_branch_pt <- function(cds, lineages, branch_points, path) {
+  results_list <- list()
+  for (lineage in lineages) {
+    file_path <- paste0(path, lineage, "_sub.R")
+    if (!file.exists(file_path)) {
+      stop("File does not exist: ", file_path)
+    }
+    load(file_path)
+    
+    pseudotime <- cds@lineages[[lineage]]$updated_pt
+    pseudotime <- pseudotime - min(pseudotime, na.rm = TRUE)
+    test <- cds_sub@principal_graph_aux@listData[["UMAP"]][["dp_mst"]]
+    vertex_umap <- t(test)
+    cell_umap <- reducedDims(cds_sub)$UMAP
+    
+    closest_cells <- c()
+    target_pts <- c()
+    for (v in branch_points) {
+      if (v %in% rownames(vertex_umap)) {
+        v_coord <- vertex_umap[v, ]
+        dists <- sqrt(rowSums(sweep(cell_umap, 2, v_coord, "-")^2))
+        closest_cell <- names(which.min(dists))
+        target_pseudotime <- unname(pseudotime[closest_cell])
+        closest_cells <- c(closest_cells, closest_cell)
+        target_pts <- c(target_pts, target_pseudotime)
+      } else {
+        closest_cells <- c(closest_cells, NA)
+        target_pts <- c(target_pts, NA)
+      }
+    }
+    results_list[[lineage]] <- rbind(closest_cells, target_pts)
+  }
+  final_output <- list()
+  for (i in seq_along(branch_points)) {
+    # Extract the i-th column from every lineage's result
+    bp_data <- sapply(results_list, function(x) x[, i])
+    rownames(bp_data) <- c("closest_cell", "target_pseudotime")
+    final_output[[paste0("BP_", branch_points[i])]] <- bp_data
+  }
+  return(final_output)
+}
+
+get_bp_specific_alignments <- function(cds, lineages, bp_results, fixed_targets) {
+  # This list will store: results[["BP_NAME"]][["LINEAGE_NAME"]]
+  all_alignments <- list()
+  # Pre-calculate lineage boundaries
+  lin_info <- lapply(lineages, function(lin) {
+    vals <- as.numeric(unlist(cds@expression[[lin]]$sum[, 3]))
+    list(min = min(vals), max = max(vals), span = diff(range(vals)))
+  })
+  names(lin_info) <- lineages
+  
+  # Iterate through each Branch Point
+  for (bp_name in names(fixed_targets)) {
+    target_pos <- fixed_targets[bp_name]
+    all_alignments[[bp_name]] <- list()
+    # Identify which lineages have this BP
+    # Accessing the second row (target_pseudotime) for all lineages
+    raw_pts_for_bp <- bp_results[[bp_name]][2, ]
+    valid_lins <- names(raw_pts_for_bp)[!is.na(raw_pts_for_bp)]
+    
+    for (lin in valid_lins) {
+      # Extract raw meta-cell PT
+      pt_meta <- as.numeric(unlist(cds@expression[[lin]]$sum[, 3]))
+      names(pt_meta) <- rownames(cds@expression[[lin]]$sum)
+      
+      # The raw anchor for this lineage
+      raw_anchor <- as.numeric(raw_pts_for_bp[lin])
+      
+      # Define 2 segments: [Start to BP] and [BP to End]
+      raw_bounds <- c(lin_info[[lin]]$min, raw_anchor, lin_info[[lin]]$max)
+      new_bounds <- c(0, target_pos, 1.0)
+      
+      pt_norm <- pt_meta
+      for (i in 1:2) {
+        lr <- raw_bounds[i]; ur <- raw_bounds[i+1]
+        ln <- new_bounds[i]; un <- new_bounds[i+1]
+        
+        # Segment mask logic [lower, upper) for first, [lower, upper] for last
+        mask <- if(i == 1) (pt_meta >= lr & pt_meta < ur) else (pt_meta >= lr & pt_meta <= ur)
+        
+        if (any(mask) && (ur > lr)) {
+          pt_norm[mask] <- (pt_meta[mask] - lr) / (ur - lr) * (un - ln) + ln
+        }
+      }
+      # Store the result for this specific lineage under this specific BP
+      all_alignments[[bp_name]][[lin]] <- pt_norm
+    }
+  }
+  return(all_alignments)
+}
+
+quasi_refit_by_branchpoint <- function(cds, cores = 1, N = 1000, nknot = 8) {
+  lineages <- names(cds@lineages)
+  pseudotime <- prepare_pt_flat(cds, lineages)
+  interior_knots <- quantile(pseudotime, probs = seq(0, 1, length.out = nknot)[-c(1, nknot)])
+  predict_pt <- seq(0, 1, length.out = N)
+  
+  for (lineage in lineages) {
+    # Access the list of 5 branch point pseudotimes
+    bp_list <- cds@pseudotime[[lineage]]$streched
+    bp_names <- names(bp_list)
+    
+    message(paste("Processing lineage:", lineage, "with branch points:", paste(bp_names, collapse = ", ")))
+    
+    # Initialize the container for this lineage
+    cds@expectation[[lineage]] <- list()
+    #pseudotime <- prepare_pt_flat(cds, lineages)
+    #interior_knots <- quantile(pseudotime, probs = seq(0, 1, length.out = nknot)[-c(1, nknot)])
+    #predict_pt <- seq(0, 1, length.out = N)
+    
+    # Iterate through each Branch Point (BP) element
+    for (bp in bp_names) {
+      message(paste("  Fitting model for Branch Point:", bp))
+      
+      # 1. Extract expression and size factors
+      meta_sum <- cds@expression[[lineage]][["sum"]]
+      mat_m <- as.matrix(meta_sum[, 7:ncol(meta_sum)])
+      size_factor <- meta_sum$size_factor
+      genes <- colnames(mat_m)
+      
+      # 2. Get the specific pseudotime vector for this BP
+      # Using the 'streched' values directly
+      pt_vec <- bp_list[[bp]]
+      
+      # Handle potential NAs (cells not belonging to this specific BP path)
+      valid_cells <- !is.na(pt_vec)
+      d <- pt_vec[valid_cells]
+      
+      # Subset matrix and size factors to match valid cells
+      mat_valid <- mat_m[valid_cells, ]
+      size_factor <- size_factor[valid_cells]
+      
+      # 4. Define the formula
+      # Note: 'pt' and 'size_factor' are passed as arguments to the fit function
+      model <- as.formula(
+        substitute(
+          expression ~ splines::ns(pseudotime, knots = k, Boundary.knots = c(0, 1)) + offset(log(size_factor)),
+          list(k = interior_knots)
+        )
+      )
+      
+      # 5. Parallel Fitting across genes
+      fit_list <- pbapply::pblapply(setNames(seq_along(genes), genes), function(i) {
+        fit.m3_3_wald(
+          exp.sel = mat_valid[, i],
+          pt = d,
+          size_factor = size_factor,
+          predict_pt = predict_pt,
+          model = model,
+          N = N
+        )
+      }, cl = cores)
+      # 6. Save results into the branch point list
+      cds@expectation[[lineage]][[bp]] <- fit_list
+    }
+  }
+  return(cds)
+}
+
+run_all_pairwise_bp <- function(cds, lineages) {
+  
+  lineage_names <- lineages
+  if (length(lineage_names) < 2) {
+    stop("You need at least 2 lineages to perform pairwise comparisons.")
+  }
+  
+  # 1. Generate all unique pairs of lineages
+  pairs <- combn(lineage_names, 2, simplify = FALSE)
+  
+  # 2. Storage for results
+  final_pattern_list <- list()
+  final_diffend_list <- list()
+  
+  for (pair in pairs) {
+    l1 <- pair[1]
+    l2 <- pair[2]
+    
+    # Get the sequence of Branch Point names for both lineages
+    # (Assuming these are the names of the list elements in @expectation)
+    branches_l1 <- names(cds@expectation[[l1]])
+    branches_l2 <- names(cds@expectation[[l2]])
+    
+    # 3. Identify the shared path and the latest shared Branch Point (BP)
+    shared_branches <- intersect(branches_l1, branches_l2)
+    
+    if (length(shared_branches) == 0) {
+      warning(sprintf("No shared branches found between %s and %s. Skipping.", l1, l2))
+      next
+    }
+    
+    # The 'latest' shared branch is the last one in the common sequence
+    latest_shared_bp <- tail(shared_branches, 1)
+    comp_name <- paste(l1, "vs", l2, "at", latest_shared_bp, sep = "_")
+    
+    message(sprintf("\n>>> Comparing: %s vs %s", l1, l2))
+    message(sprintf(">>> Common Branch Point identified: %s", latest_shared_bp))
+    
+    # 4. Extract data for that specific Branch Point from both lineages
+    # We navigate into the expectation list using the lineage name, then the BP name
+    data_l1 <- cds@expectation[[l1]][[latest_shared_bp]]
+    data_l2 <- cds@expectation[[l2]][[latest_shared_bp]]
+    
+    # 5. Run existing comparison logic
+    # Ensure run_pairwise_comparison handles the data objects found at these branch levels
+    res <- run_pairwise_comparison(data_l1, data_l2)
+    
+    # 6. Store results using the specific comparison name
+    final_pattern_list[[comp_name]] <- res$pattern
+    final_diffend_list[[comp_name]] <- res$diffend
+  }
+  
+  return(list(patterns = final_pattern_list, diffend = final_diffend_list))
+}
+
+extract_lineage_df_bp <- function(res, lineage) {
+  nm <- names(res)
+  
+  # 1. Identify which list elements contain the lineage of interest
+  keep <- sapply(nm, function(x) {
+    # Split by "_at_" first to remove branch info, then by "_vs_"
+    lineage_part <- strsplit(x, "_at_")[[1]][1]
+    parts <- strsplit(lineage_part, "_vs_")[[1]]
+    lineage %in% parts
+  })
+  
+  sub_res <- res[keep]
+  if (length(sub_res) == 0) return(NULL)
+  
+  out_list <- list()
+  for (i in seq_along(sub_res)) {
+    full_name <- names(sub_res)[i]
+    df        <- sub_res[[i]]
+    
+    # 2. Robust Splitting: Separate Lineages and Branch
+    main_parts   <- strsplit(full_name, "_at_")[[1]]
+    lineage_part <- main_parts[1]
+    branch_info  <- main_parts[2] # e.g., "aligned_BP_Y_189"
+    
+    lineage_pair <- strsplit(lineage_part, "_vs_")[[1]]
+    a <- lineage_pair[1] # Reference
+    b <- lineage_pair[2] # Comparison
+    
+    # 3. Standardization Logic
+    # If the user-requested lineage is 'b', flip the data so it becomes 'a'
+    if (lineage == b) {
+      # Flip log2FC if it exists
+      if ("log2FC" %in% colnames(df)) {
+        df$log2FC <- -df$log2FC
+      }
+      
+      # Swap PredictA and PredictB
+      if ("predictA" %in% colnames(df) && "predictB" %in% colnames(df)) {
+        temp_A <- df$predictA
+        df$predictA <- df$predictB
+        df$predictB <- temp_A
+      }
+      other <- a
+    } else {
+      other <- b
+    }
+    
+    # 4. Create a descriptive new name that includes the branch
+    # Format: Lineage_vs_Other_at_Branch
+    new_name <- paste0(lineage, "_vs_", other, "_at_", branch_info)
+    
+    # Rename columns to include the specific comparison and branch info
+    colnames(df) <- paste0(colnames(df), "_", new_name)
+    out_list[[new_name]] <- df
+  }
+  
+  # 5. Combine results
+  # We use the full names to ensure columns are unique across different branches
+  names(out_list) <- NULL
+  out <- do.call(cbind, out_list)
+  return(out)
+}
+
+
+quasi_test_bp <- function(cds){
+  lineages <- names(cds@lineages)
+  
+  # Both 'res' and 'waldResOmnibus' are now lists with names 'pattern' and 'diffend'
+  res <- run_all_pairwise_bp(cds, lineages)
+  
+  for (lin in lineages) {
+    # 1. Extract pairwise dataframes for this lineage
+    # Assuming 'extract_lineage_df' handles one test type at a time
+    out_pattern <- extract_lineage_df_bp(res$pattern, lin)
+    out_diffend <- extract_lineage_df_bp(res$diffend, lin)
+    
+    cds@lineage_genes[[lin]] <- list() 
+    cds@lineage_genes[[lin]]$lineage_genes <- list()
+    
+    # 3. Reorder metrics and store as a list of 2 dataframes
+    # Reusing 'reorder_metrics_grouped' which now handles the 'global_' prefix
+    pattern_test = reorder_metrics_grouped(out_pattern, type = "pattern")
+    fc_cols <- grep("^log2FC_.*_pattern$", colnames(pattern_test), value = TRUE)
+    if (length(fc_cols) == 1) {
+      # Direct assignment is much faster than apply
+      pattern_test$average_FC_pattern <- pattern_test[[fc_cols]]
+    } else {
+      # Use apply for multiple columns
+      pattern_test$average_FC_pattern <- apply(pattern_test[, fc_cols], 1, get_average_FC)
+    }
+    diffend_test = reorder_metrics_grouped(out_diffend, type = "diffend")
+    fc_cols <- grep("^log2FC_.*_diffend$", colnames(diffend_test), value = TRUE)
+    if (length(fc_cols) == 1) {
+      # Direct assignment is much faster than apply
+      diffend_test$average_FC_diffend <- diffend_test[[fc_cols]]
+    } else {
+      # Use apply for multiple columns
+      diffend_test$average_FC_diffend <- apply(diffend_test[, fc_cols], 1, get_average_FC)
+    }
+    
+    cds@lineage_genes[[lin]]$lineage_genes$quasipoisson <- list(
+      pattern_test = pattern_test,
+      diffend_test = diffend_test
+    )
+  }
+  return(cds)
+}
+
+format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4, dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05, threshold = 0.1, p_adjust = "BH", specificity = "high", dynamic_test = "Moran", type){
+  lineages = names(cds@lineages)
+  pattern_genes = cds@lineage_genes[[lineage]][["lineage_genes"]][[type]]$pattern_test
+  diffend_genes = cds@lineage_genes[[lineage]][["lineage_genes"]][[type]]$diffend_test
+  #First filter out genes that express in fewer than 100 cells
+  expressed_genes <- filter_by_expression_lineage(cds=cds, lineage=lineage, mode = "number", N = 100, ratio = 0.01)
+  common_genes <- intersect(expressed_genes, rownames(pattern_genes))
+  pattern_genes <- pattern_genes[common_genes, , drop = FALSE]
+  common_genes <- intersect(expressed_genes, rownames(diffend_genes))
+  diffend_genes <- diffend_genes[common_genes, , drop = FALSE]
+  #Second filter out genes that has p value >= 0.05 and moran's I statistics above 0.1
+  if(dynamic_I_cutoff != F){
+    dynamic = cds@dynamic_genes[[lineage]]
+    if(dynamic_test == "Moran"){
+      dynamic_genes = rownames(dynamic[dynamic$I >= dynamic_I_cutoff & dynamic$padj <= dynamic_p_cutoff, ])
+    }
+    else{
+      dynamic_genes = rownames(dynamic[dynamic$scaled_FC >= dynamic_I_cutoff, ])
+    }
+    common_genes <- intersect(dynamic_genes, rownames(pattern_genes))
+    pattern_genes <- pattern_genes[common_genes, , drop = FALSE]
+    common_genes <- intersect(dynamic_genes, rownames(diffend_genes))
+    diffend_genes <- diffend_genes[common_genes, , drop = FALSE]
+  }
+  #Third filter out genes with NA values in averageFC and global pvalue
+  #pattern_genes_adjusted <- pattern_genes[(!is.na(pattern_genes$average_FC_pattern) & !is.na(pattern_genes$pvalue_combined_pattern)),]
+  #diffend_genes_adjusted <- diffend_genes[(!is.na(diffend_genes$average_FC_diffend) & !is.na(diffend_genes$pvalue_combined_diffend)),]
+  pattern_genes_adjusted <- pattern_genes[!is.na(pattern_genes$average_FC_pattern),]
+  diffend_genes_adjusted <- diffend_genes[!is.na(diffend_genes$average_FC_diffend),]
+  #post-hoc p values
+  #if(p_adjust != FALSE){
+    #pattern_genes_adjusted$pvalue_combined_pattern <- p.adjust(pattern_genes_adjusted$pvalue_combined_pattern, method = "BH")
+    #diffend_genes_adjusted$pvalue_combined_diffend <- p.adjust(diffend_genes_adjusted$pvalue_combined_diffend, method = "BH")
+  #}
+  if(length(lineages) > 2){
+    if(p_adjust != FALSE){
+      pairwise_columns_p <- grep("^pvalue_.*vs.*_pattern$", colnames(pattern_genes_adjusted), value = TRUE)
+      #Check: what if p_matrix_sig have NAs in columns
+      pattern_genes_adjusted[, pairwise_columns_p] <- lapply(pattern_genes_adjusted[, pairwise_columns_p, drop = FALSE], p.adjust, method = "BH")
+      p_matrix_adj <- pattern_genes_adjusted[, pairwise_columns_p, drop = FALSE]
+      pairwise_columns_d <- grep("^pvalue_.*vs.*_diffend$", colnames(diffend_genes_adjusted), value = TRUE)
+      #Check: what if d_matrix_sig have NAs in columns
+      diffend_genes_adjusted[, pairwise_columns_d] <- lapply(diffend_genes_adjusted[, pairwise_columns_d, drop = FALSE], p.adjust, method = "BH")
+      d_matrix_adj <- diffend_genes_adjusted[, pairwise_columns_d, drop = FALSE]
+    }
+    FCs_p = pattern_genes_adjusted[, grepl("log2FC", colnames(pattern_genes_adjusted))]
+    median_FC_p <- apply(FCs_p, 1, median, na.rm = TRUE)
+    median_FC_p = median_FC_p[rownames(pattern_genes_adjusted)]
+    pattern_genes_adjusted$median_FC_pattern <- median_FC_p
+    FCs_d = diffend_genes_adjusted[, grepl("log2FC", colnames(diffend_genes_adjusted))]
+    median_FC_d = apply(FCs_d, 1, median, na.rm = TRUE)
+    median_FC_d = median_FC_d[rownames(diffend_genes_adjusted)]
+    diffend_genes_adjusted$median_FC_diffend <- median_FC_d
+    if(specificity == "high"){
+      #lineage_genes_p = pattern_genes[(rowSums(FCs_p >= FC_cutoff) == ncol(FCs_p) | rowSums(FCs <= -FC_cutoff) == ncol(FCs)) & pattern_filtered$p_adjusted <= p_cutoff, ]
+      lineage_genes_p <- pattern_genes_adjusted[
+        rowSums(FCs_p >= FC_pattern_cutoff, na.rm = TRUE) == rowSums(!is.na(FCs_p)) & 
+          rowSums(p_matrix_adj <= p_cutoff, na.rm = TRUE) == rowSums(!is.na(p_matrix_adj)), 
+      ]
+      if(type == "quasipoisson"){
+        final_df_p <- lineage_genes_p %>%
+          select(
+            matches("^waldStat|^pvalue|^log2FC"),
+            predictA = matches("^predictA") %>% head(1),
+            starts_with("predictB"),
+            matches("^average_FC|^median_FC")
+          )
+        lineage_genes_p <- final_df_p
+        #cols_predict <- grep("^predict[A|B]_", colnames(lineage_genes_p))
+        #keep_rows <- rowSums(lineage_genes_p[, cols_predict, drop = FALSE] >= threshold, na.rm = TRUE) > 0
+        #lineage_genes_p <- lineage_genes_p[keep_rows, ]
+      }
+      lineage_genes_d <- diffend_genes_adjusted[
+        rowSums(FCs_d >= FC_diffend_cutoff, na.rm = TRUE) == rowSums(!is.na(FCs_d)) & 
+          rowSums(d_matrix_adj <= p_cutoff, na.rm = TRUE) == rowSums(!is.na(d_matrix_adj)), 
+      ]
+      if(type == "quasipoisson"){
+        final_df_d <- lineage_genes_d %>%
+          select(
+            matches("^waldStat|^pvalue|^log2FC"),
+            predictA = matches("^predictA") %>% head(1),
+            starts_with("predictB"),
+            matches("^average_FC|^median_FC")
+          )
+        lineage_genes_d <- final_df_d
+        #cols_predict <- grep("^predict[A|B]_", colnames(lineage_genes_d))
+        #keep_rows <- rowSums(lineage_genes_d[, cols_predict, drop = FALSE] >= threshold, na.rm = TRUE) > 0
+        #lineage_genes_d <- lineage_genes_d[keep_rows, ]
+      }
+      #cols_A <- grep("^predictA_", colnames(lineage_genes_d))
+      #cols_B <- grep("^predictB_", colnames(lineage_genes_d))
+      #keep_rows <- apply(lineage_genes_d[, c(cols_A, cols_B), drop = FALSE], 1, function(row) {
+      #any(row > threshold, na.rm = TRUE)
+      #})
+      #lineage_genes_d <- lineage_genes_d[keep_rows, ]
+    }
+  }
+  else{
+    pattern_genes_adjusted['median_FC_pattern'] <- pattern_genes_adjusted['average_FC_pattern']
+    diffend_genes_adjusted['median_FC_diffend'] <- diffend_genes_adjusted['average_FC_diffend']
+    if(type == "quasipoisson"){
+      if (p_adjust != FALSE){
+        pairwise_columns_p <- grep("^pvalue_.*vs.*_pattern$", colnames(pattern_genes_adjusted), value = TRUE)
+        #Check: what if p_matrix_sig have NAs in columns
+        pattern_genes_adjusted[, pairwise_columns_p] <- lapply(pattern_genes_adjusted[, pairwise_columns_p, drop = FALSE], p.adjust, method = "BH")
+        p_matrix_adj <- pattern_genes_adjusted[, pairwise_columns_p, drop = FALSE]
+        pairwise_columns_d <- grep("^pvalue_.*vs.*_diffend$", colnames(diffend_genes_adjusted), value = TRUE)
+        #Check: what if d_matrix_sig have NAs in columns
+        diffend_genes_adjusted[, pairwise_columns_d] <- lapply(diffend_genes_adjusted[, pairwise_columns_d, drop = FALSE], p.adjust, method = "BH")
+        d_matrix_adj <- diffend_genes_adjusted[, pairwise_columns_d, drop = FALSE]
+      }
+      lineage_genes_p = pattern_genes_adjusted[pattern_genes_adjusted[, pairwise_columns_p] <= p_cutoff & pattern_genes_adjusted$median_FC_pattern >= FC_pattern_cutoff, ]
+      lineage_genes_d = diffend_genes_adjusted[diffend_genes_adjusted[, pairwise_columns_d] <= p_cutoff & diffend_genes_adjusted$median_FC_diffend >= FC_diffend_cutoff, ]
+      cols_A <- grep("^predictA_", colnames(lineage_genes_d))
+      cols_B <- grep("^predictB_", colnames(lineage_genes_d))
+      keep_rows <- apply(lineage_genes_d[, c(cols_A, cols_B), drop = FALSE], 1, function(row) {
+      any(row > threshold, na.rm = TRUE)
+      })
+      lineage_genes_d <- lineage_genes_d[keep_rows, ]
+    }else{
+      lineage_genes_p = pattern_genes_adjusted[pattern_genes_adjusted$pvalue_combined_pattern <= p_cutoff & pattern_genes_adjusted$median_FC_pattern >= FC_pattern_cutoff, ]
+      lineage_genes_d = diffend_genes_adjusted[diffend_genes_adjusted$pvalue_combined_diffend <= p_cutoff & diffend_genes_adjusted$median_FC_diffend >= FC_diffend_cutoff, ]
+      #message("Same as high specificity test for 2 lineages")
+    }
+  }
+  gene = union(rownames(lineage_genes_p), rownames(lineage_genes_d))
+  #p_df <- pattern_genes_filtered[gene, c("waldStat_combined_pattern"), drop = FALSE]
+  #d_df <- diffend_genes_filtered[gene, c("waldStat_combined_diffend"), drop = FALSE]
+  p_df <- pattern_genes_adjusted[gene, c("median_FC_pattern"), drop = FALSE]
+  d_df <- diffend_genes_adjusted[gene, c("median_FC_diffend"), drop = FALSE]
+  p_df <- p_df[rownames(d_df), , drop = FALSE]
+  merged <- cbind(p_df, d_df)
+  #merged$transientScore <- 
+  #rank(-merged$waldStat_combined_pattern, ties.method = "min")^2 + rank(-merged$waldStat_combined_diffend, ties.method = "min")^2
+  merged$transientScore <- 
+    rank(-merged$median_FC_pattern, ties.method = "min")^2 + rank(-merged$median_FC_diffend, ties.method = "min")^2
+  lineage_spec_genes <- merged[order(merged$transientScore), ]
+  lineage_spec_genes$lineage <- rep(lineage, nrow(lineage_spec_genes))
+  lineage_spec <- list("pattern_filtered" = lineage_genes_p, "pattern_prefiltered" = pattern_genes_adjusted, "diffend_filtered" = lineage_genes_d, "diffend_prefiltered" = diffend_genes_adjusted, "combined" = lineage_spec_genes)
+  lineage_spec
+}
+
+
+
                           
