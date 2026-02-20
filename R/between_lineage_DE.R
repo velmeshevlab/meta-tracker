@@ -2105,7 +2105,33 @@ format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_p
   lineage_spec <- list("pattern_filtered" = lineage_genes_p, "pattern_prefiltered" = pattern_genes_adjusted, "diffend_filtered" = lineage_genes_d, "diffend_prefiltered" = diffend_genes_adjusted, "combined" = lineage_spec_genes)
   lineage_spec
 }
-
+prepare_pt_flat <- function(cds, lineages) {
+  # This list will temporarily hold the vectors for each BP
+  all_pts_collected <- list()
+  
+  for (lineage in lineages) {
+    # Access the 'streched' list which contains the 5 BPs
+    bp_list <- cds@pseudotime[[lineage]]$streched
+    
+    for (bp_name in names(bp_list)) {
+      # 1. Get raw pseudotime (no scaling)
+      pt_raw <- bp_list[[bp_name]]
+      
+      # 2. Create unique names to identify exactly where this value came from
+      # Format: Lineage.BP.CellIndex (e.g., ExN1.BP1.42)
+      names(pt_raw) <- paste(lineage, bp_name, seq_along(pt_raw), sep = ".")
+      
+      # 3. Store in the collector list using a unique key
+      key <- paste(lineage, bp_name, sep = "_")
+      all_pts_collected[[key]] <- pt_raw
+    }
+  }
+  
+  # Collapse all lineages and all BPs into one single long vector
+  final_vector <- unlist(all_pts_collected, use.names = TRUE)
+  
+  return(final_vector)
+}
 
 
                           
