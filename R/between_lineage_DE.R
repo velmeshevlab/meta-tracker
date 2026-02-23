@@ -2133,5 +2133,39 @@ prepare_pt_flat <- function(cds, lineages) {
   return(final_vector)
 }
 
+find_branches_bp <- function(cds){
+  graph_list = cds@graphs
+  start = find_start_point(graph_list)
+  branch_points = get_branch_points(graph_list)
+  branch_list_full = list()
+  for(branch_vertex in branch_points){
+    graph_list_f = list()
+    i <- 1
+    for(graph in graph_list){
+      if(branch_vertex %in% V(graph)$name)
+        graph_list_f[[names(graph_list)[i]]] <- graph
+      i <- i + 1
+    }
+    graph_list_trunc = lapply(graph_list_f, get_subgraph_opposite_to_start, start = start, branch_vertex = branch_vertex)
+    branch_list = group_graphs_by_vertex_overlap(graph_list_trunc)
+    names(branch_list) <- c("B1", "B2")
+    branch_list_full[[branch_vertex]] <- branch_list
+  }
+  combined_graph <- graph.empty(directed = FALSE)
+  for (g in graph_list) {
+    combined_graph <- igraph::union(combined_graph, g)
+  }
+  combined_graph <- simplify(combined_graph)
+  distances <- sapply(branch_points, function(bp) {
+    sp <- suppressWarnings(shortest.paths(combined_graph, v = start, to = bp))
+    return(sp[1, 1])
+  })
+  branch_points_sorted <- branch_points[order(distances)]
+  branch_list_full = branch_list_full[branch_points_sorted]
+  new_names <- paste0("BP_", branch_points_sorted)
+  names(branch_list_full) <- new_names
+  return(branch_list_full)
+}
+
 
                           
