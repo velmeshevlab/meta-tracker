@@ -2167,5 +2167,67 @@ find_branches_bp <- function(cds){
   return(branch_list_full)
 }
 
+format_branch_specific_genes_bp <- function(branch_point, cds, branch_number = 1, bp_name, p_cutoff = 0.05, FC_cutoff = 0.2){
+  lineages = names(cds@lineages)
+  branches_1 = branch_point[[branch_number]]
+  if(branch_number == 1){
+    branches_2 = branch_point[[2]]
+  }
+  else{
+    branches_2 = branch_point[[1]]
+  }
+  branch_genes = list()
+  branch_gene_names = list()
+  for(lineage in branches_1){
+    lineage_genes = cds@lineage_genes[[lineage]][["filtered"]][["quasipoisson"]][["pattern_prefiltered"]]
+    FC_names = c()
+    for(lin in branches_2){
+      FC_names = c(FC_names, paste0("log2FC_", lineage, "vs", lin, "_"))
+    }
+    p_names = c()
+    for(lin in branches_2){
+      p_names = c(p_names, paste0("pvalue_", lineage, "vs", lin, "_"))
+    }
+    search_pattern <- paste(c(FC_names, p_names), collapse = "|")
+    lineage_genes_filtered <- lineage_genes[, grep(search_pattern, colnames(lineage_genes))]
+    has_fc <- rowSums(!is.na(lineage_genes_filtered[, grepl("log2FC", colnames(lineage_genes_filtered)), drop = FALSE])) > 0
+    has_p  <- rowSums(!is.na(lineage_genes_filtered[, grepl("pvalue", colnames(lineage_genes_filtered)), drop = FALSE])) > 0
+    lineage_genes_filtered <- lineage_genes_filtered[has_fc & has_p, ]
+    fc_cols <- grep("log2FC", colnames(lineage_genes_filtered), value = TRUE)
+    p_cols  <- grep("pvalue", colnames(lineage_genes_filtered), value = TRUE)
+    pass_fc <- rowMeans(lineage_genes_filtered[, fc_cols, drop = FALSE] >= FC_cutoff, na.rm = TRUE) == 1
+    pass_p  <- rowMeans(lineage_genes_filtered[, p_cols, drop = FALSE] <= p_cutoff, na.rm = TRUE) == 1
+    lineage_spec_genes <- lineage_genes_filtered[which(pass_fc & pass_p), ]
+    branch_genes[[lineage]] <- lineage_spec_genes
+    branch_gene_names[[lineage]] <- rownames(lineage_spec_genes)
+  }
+  branch_gene_names = Reduce(intersect, branch_gene_names)
+  median_FC_matrix = matrix(0,nrow = length(branch_gene_names), ncol = 0)
+  for(lineage in branches_1){
+    lineage_genes = branch_genes[[lineage]]
+    FC_names = c()
+    for(lin in branches_2){
+      FC_names = c(FC_names, paste0("log2FC_", lineage, "vs", lin, "_"))
+    }
+    search_fc_pattern <- paste(FC_names, collapse = "|")
+    FCs <- lineage_genes[branch_gene_names, grep(search_fc_pattern, colnames(lineage_genes)), drop = FALSE]
+    median_FC_matrix = cbind(median_FC_matrix, FCs)
+  }
+  if(ncol(median_FC_matrix)==1){
+    median_FC <- setNames(median_FC_matrix[,1], rownames(median_FC_matrix))
+  }else{
+    median_FC = apply(median_FC_matrix, 1, median)
+  }
+  final_out = median_FC
+  final_out = as.data.frame(final_out)
+  rownames(final_out) <- names(median_FC)
+  lineage_string <- paste(branches_1, collapse = "_")
+  branch_label <- paste0(bp_name, "_", lineage_string)
+  final_out$branch <- branch_label
+  colnames(final_out) <- c("median_FC", "specific_to_lineages")
+  final_out = final_out[with(final_out, order(-abs(median_FC))), ]
+  final_out
+}
+
 
                           
