@@ -1259,10 +1259,11 @@ calculate_separate_diff <- function(fit_A, fit_B, l2fc = 0.1, eigenThresh = 1e-2
   p_val <- stats::pchisq(wald_stat, df = df_wald, lower.tail = FALSE)
   
   # 13. Convert natural log FC to Log2FC for reporting
-  log2FC_val <- as.numeric(estFC / log(2))
+  #log2FC_val <- as.numeric(estFC / log(2))
   
   pred_val_A <- fit_A$prediction[length(fit_A$prediction)]
   pred_val_B <- fit_B$prediction[length(fit_B$prediction)]
+  log2FC_val <- log2(pred_val_A/pred_val_B)
   
   return(c(waldStat = wald_stat, df = df_wald, p_val = p_val, log2FC = log2FC_val, predictA = pred_val_A, predictB = pred_val_B))
 }
