@@ -1965,7 +1965,7 @@ quasi_test_bp <- function(cds){
   return(cds)
 }
 
-format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4, dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05, threshold = 0.1, p_adjust = "BH", specificity = "high", dynamic_test = "Moran", type){
+format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_pattern_cutoff = 0.2, FC_diffend_gen = 0.009, FC_diffend_cutoff = 0.4, dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05, threshold = 0.1, threshold_fc = 5, p_adjust = "BH", specificity = "high", dynamic_test = "Moran", type){
   lineages = names(cds@lineages)
   pattern_genes = cds@lineage_genes[[lineage]][["lineage_genes"]][[type]]$pattern_test
   diffend_genes = cds@lineage_genes[[lineage]][["lineage_genes"]][[type]]$diffend_test
@@ -1986,117 +1986,127 @@ format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_p
     }
     common_genes <- intersect(dynamic_genes, rownames(pattern_genes))
     pattern_genes <- pattern_genes[common_genes, , drop = FALSE]
+    dynamic_subset_I <- dynamic[common_genes, "I", drop = FALSE]
+    pattern_genes <- cbind(pattern_genes, I = dynamic_subset_I)
     common_genes <- intersect(dynamic_genes, rownames(diffend_genes))
     diffend_genes <- diffend_genes[common_genes, , drop = FALSE]
+    dynamic_subset_I <- dynamic[common_genes, "I", drop = FALSE]
+    diffend_genes <- cbind(diffend_genes, I = dynamic_subset_I)
   }
   #Third filter out genes with NA values in averageFC and global pvalue
   #pattern_genes_adjusted <- pattern_genes[(!is.na(pattern_genes$average_FC_pattern) & !is.na(pattern_genes$pvalue_combined_pattern)),]
   #diffend_genes_adjusted <- diffend_genes[(!is.na(diffend_genes$average_FC_diffend) & !is.na(diffend_genes$pvalue_combined_diffend)),]
   pattern_genes_adjusted <- pattern_genes[!is.na(pattern_genes$average_FC_pattern),]
   diffend_genes_adjusted <- diffend_genes[!is.na(diffend_genes$average_FC_diffend),]
-  #post-hoc p values
-  #if(p_adjust != FALSE){
-    #pattern_genes_adjusted$pvalue_combined_pattern <- p.adjust(pattern_genes_adjusted$pvalue_combined_pattern, method = "BH")
-    #diffend_genes_adjusted$pvalue_combined_diffend <- p.adjust(diffend_genes_adjusted$pvalue_combined_diffend, method = "BH")
-  #}
-  if(length(lineages) > 2){
-    if(p_adjust != FALSE){
-      pairwise_columns_p <- grep("^pvalue_.*vs.*_pattern$", colnames(pattern_genes_adjusted), value = TRUE)
-      #Check: what if p_matrix_sig have NAs in columns
-      pattern_genes_adjusted[, pairwise_columns_p] <- lapply(pattern_genes_adjusted[, pairwise_columns_p, drop = FALSE], p.adjust, method = "BH")
-      p_matrix_adj <- pattern_genes_adjusted[, pairwise_columns_p, drop = FALSE]
-      pairwise_columns_d <- grep("^pvalue_.*vs.*_diffend$", colnames(diffend_genes_adjusted), value = TRUE)
-      #Check: what if d_matrix_sig have NAs in columns
-      diffend_genes_adjusted[, pairwise_columns_d] <- lapply(diffend_genes_adjusted[, pairwise_columns_d, drop = FALSE], p.adjust, method = "BH")
-      d_matrix_adj <- diffend_genes_adjusted[, pairwise_columns_d, drop = FALSE]
-    }
-    FCs_p = pattern_genes_adjusted[, grepl("log2FC", colnames(pattern_genes_adjusted))]
-    median_FC_p <- apply(FCs_p, 1, median, na.rm = TRUE)
-    median_FC_p = median_FC_p[rownames(pattern_genes_adjusted)]
-    pattern_genes_adjusted$median_FC_pattern <- median_FC_p
-    FCs_d = diffend_genes_adjusted[, grepl("log2FC", colnames(diffend_genes_adjusted))]
-    median_FC_d = apply(FCs_d, 1, median, na.rm = TRUE)
-    median_FC_d = median_FC_d[rownames(diffend_genes_adjusted)]
-    diffend_genes_adjusted$median_FC_diffend <- median_FC_d
-    if(specificity == "high"){
-      #lineage_genes_p = pattern_genes[(rowSums(FCs_p >= FC_cutoff) == ncol(FCs_p) | rowSums(FCs <= -FC_cutoff) == ncol(FCs)) & pattern_filtered$p_adjusted <= p_cutoff, ]
-      lineage_genes_p <- pattern_genes_adjusted[
-        rowSums(FCs_p >= FC_pattern_cutoff, na.rm = TRUE) == rowSums(!is.na(FCs_p)) & 
-          rowSums(p_matrix_adj <= p_cutoff, na.rm = TRUE) == rowSums(!is.na(p_matrix_adj)), 
-      ]
-      if(type == "quasipoisson"){
-        final_df_p <- lineage_genes_p %>%
-          select(
-            matches("^waldStat|^pvalue|^log2FC"),
-            predictA = matches("^predictA") %>% head(1),
-            starts_with("predictB"),
-            matches("^average_FC|^median_FC")
-          )
-        lineage_genes_p <- final_df_p
-        #cols_predict <- grep("^predict[A|B]_", colnames(lineage_genes_p))
-        #keep_rows <- rowSums(lineage_genes_p[, cols_predict, drop = FALSE] >= threshold, na.rm = TRUE) > 0
-        #lineage_genes_p <- lineage_genes_p[keep_rows, ]
+  #For diffend test, filter the endpoint values
+  predictA_cols <- grep("^predictA_", colnames(diffend_genes_adjusted), value = TRUE)
+  diffend_genes_adjusted <- diffend_genes_adjusted[rowSums(diffend_genes_adjusted[, predictA_cols, drop = FALSE] >= FC_diffend_gen, na.rm = TRUE) > 0, ]
+  
+  if(p_adjust != FALSE){
+    pairwise_columns_p <- grep("^pvalue_.*vs.*_pattern$", colnames(pattern_genes_adjusted), value = TRUE)
+    #Check: what if p_matrix_sig have NAs in columns
+    pattern_genes_adjusted$pvalue_meta  <- apply(pattern_genes_adjusted[, pairwise_columns_p, drop = FALSE], 1, get_meta_p)
+    lineage_genes_p <- pattern_genes_adjusted
+    lineage_genes_p[, pairwise_columns_p] <- lapply(lineage_genes_p[, pairwise_columns_p, drop = FALSE], p.adjust, method = "BH")
+    lineage_genes_p$pvalue_meta <- p.adjust(lineage_genes_p$pvalue_meta, method = "BH")
+    p_matrix_adj <- lineage_genes_p[, pairwise_columns_p, drop = FALSE]
+    
+    pairwise_columns_d <- grep("^pvalue_.*vs.*_diffend$", colnames(diffend_genes_adjusted), value = TRUE)
+    #Check: what if d_matrix_sig have NAs in columns
+    diffend_genes_adjusted$pvalue_meta  <- apply(diffend_genes_adjusted[, pairwise_columns_d, drop = FALSE], 1, get_meta_p)
+    lineage_genes_d <- diffend_genes_adjusted
+    lineage_genes_d[, pairwise_columns_d] <- lapply(lineage_genes_d[, pairwise_columns_d, drop = FALSE], p.adjust, method = "BH")
+    lineage_genes_d$pvalue_meta <- p.adjust(lineage_genes_d$pvalue_meta, method = "BH")
+    #d_matrix_adj <- diffend_genes_adjusted[, pairwise_columns_d, drop = FALSE]
+  }
+  study_names <- gsub("^pvalue_|_diffend$", "", pairwise_columns_d)
+  log2FC_cols <- paste0("log2FC_", study_names, "_diffend") 
+  row_mask <- rowSums(lineage_genes_d[, predictA_cols, drop = FALSE] > 0.05, na.rm = TRUE) > 0
+  for (i in seq_along(pairwise_columns_d)) {
+    p_col   <- pairwise_columns_d[i]
+    lfc_col <- log2FC_cols[i]
+    if (lfc_col %in% colnames(lineage_genes_d)) {
+      update_idx <- which(
+        (row_mask & 
+           lineage_genes_d[[lfc_col]] >= threshold_fc & 
+           lineage_genes_d[[p_col]] > 0.05) | 
+          (!row_mask & 
+             lineage_genes_d[[lfc_col]] >= (2 * threshold_fc) & 
+             lineage_genes_d[[p_col]] > 0.05)
+      )
+      if (length(update_idx) > 0) {
+        lineage_genes_d[update_idx, p_col] <- .Machine$double.xmin
       }
-      lineage_genes_d <- diffend_genes_adjusted[
-        rowSums(FCs_d >= FC_diffend_cutoff, na.rm = TRUE) == rowSums(!is.na(FCs_d)) & 
-          rowSums(d_matrix_adj <= p_cutoff, na.rm = TRUE) == rowSums(!is.na(d_matrix_adj)), 
-      ]
-      if(type == "quasipoisson"){
-        final_df_d <- lineage_genes_d %>%
-          select(
-            matches("^waldStat|^pvalue|^log2FC"),
-            predictA = matches("^predictA") %>% head(1),
-            starts_with("predictB"),
-            matches("^average_FC|^median_FC")
-          )
-        lineage_genes_d <- final_df_d
-        #cols_predict <- grep("^predict[A|B]_", colnames(lineage_genes_d))
-        #keep_rows <- rowSums(lineage_genes_d[, cols_predict, drop = FALSE] >= threshold, na.rm = TRUE) > 0
-        #lineage_genes_d <- lineage_genes_d[keep_rows, ]
-      }
-      #cols_A <- grep("^predictA_", colnames(lineage_genes_d))
-      #cols_B <- grep("^predictB_", colnames(lineage_genes_d))
-      #keep_rows <- apply(lineage_genes_d[, c(cols_A, cols_B), drop = FALSE], 1, function(row) {
-      #any(row > threshold, na.rm = TRUE)
-      #})
-      #lineage_genes_d <- lineage_genes_d[keep_rows, ]
     }
   }
-  else{
+  d_matrix_adj <- lineage_genes_d[, pairwise_columns_d, drop = FALSE]
+  if(length(lineages) > 2){
+    FCs_p = lineage_genes_p[, grepl("log2FC", colnames(lineage_genes_p))]
+    median_FC_p <- apply(FCs_p, 1, median, na.rm = TRUE)
+    median_FC_p = median_FC_p[rownames(lineage_genes_p)]
+    lineage_genes_p$median_FC_pattern <- median_FC_p
+    pattern_genes_adjusted <- pattern_genes_adjusted[rownames(lineage_genes_p),]
+    pattern_genes_adjusted$median_FC_pattern <- median_FC_p
+    
+    FCs_d = lineage_genes_d[, grepl("log2FC", colnames(lineage_genes_d))]
+    median_FC_d = apply(FCs_d, 1, median, na.rm = TRUE)
+    median_FC_d = median_FC_d[rownames(lineage_genes_d)]
+    lineage_genes_d$median_FC_diffend <- median_FC_d
+    diffend_genes_adjusted <- diffend_genes_adjusted[rownames(lineage_genes_d),]
+    diffend_genes_adjusted$median_FC_diffend <- median_FC_d
+    
+    if(specificity == "high"){
+      lineage_genes_p <- process_lineage(lineage_genes_p, p_matrix_adj, FCs_p, p_cutoff = p_cutoff, fc_cutoff = FC_pattern_cutoff, type = "quasipoisson")
+      #predictA_cols <- grep("^predictA_", colnames(diffend_genes_adjusted), value = TRUE)
+      mean_predictA <- rowMeans(lineage_genes_d[, predictA_cols], na.rm = TRUE)
+      #dynamic_cutoff <- ifelse(mean_predictA <= 0.05, 0.95,
+                               #ifelse(mean_predictA > 1, 0.6, 
+                                      #ifelse(mean_predictA > 0.1, 0.55, 0.7)))
+      dynamic_cutoff <- ifelse(mean_predictA < 0.05, 0.9,
+                               ifelse(mean_predictA < 0.1, 0.7, 
+                                      ifelse(mean_predictA >= 5, 0.6, 
+                                             ifelse(mean_predictA > 0.15, 0.55, 0.64))))
+      comparison_matrix <- sweep(FCs_d, 1, dynamic_cutoff, ">=")
+      fc_pass <- rowSums(comparison_matrix, na.rm = TRUE) == rowSums(!is.na(FCs_d))
+      p_pass <- rowSums(d_matrix_adj <= p_cutoff, na.rm = TRUE) == rowSums(!is.na(d_matrix_adj))
+      lineage_genes_d <- lineage_genes_d[p_pass & fc_pass, ]
+      #lineage_genes_d <- process_lineage(diffend_genes_adjusted, d_matrix_adj, FCs_d, p_cutoff = p_cutoff, fc_cutoff = dynamic_cutoff, type = "quasipoisson")
+    }
+  }else{
     pattern_genes_adjusted['median_FC_pattern'] <- pattern_genes_adjusted['average_FC_pattern']
     diffend_genes_adjusted['median_FC_diffend'] <- diffend_genes_adjusted['average_FC_diffend']
-    if(type == "quasipoisson"){
-      if (p_adjust != FALSE){
-        pairwise_columns_p <- grep("^pvalue_.*vs.*_pattern$", colnames(pattern_genes_adjusted), value = TRUE)
-        #Check: what if p_matrix_sig have NAs in columns
-        pattern_genes_adjusted[, pairwise_columns_p] <- lapply(pattern_genes_adjusted[, pairwise_columns_p, drop = FALSE], p.adjust, method = "BH")
-        p_matrix_adj <- pattern_genes_adjusted[, pairwise_columns_p, drop = FALSE]
-        pairwise_columns_d <- grep("^pvalue_.*vs.*_diffend$", colnames(diffend_genes_adjusted), value = TRUE)
-        #Check: what if d_matrix_sig have NAs in columns
-        diffend_genes_adjusted[, pairwise_columns_d] <- lapply(diffend_genes_adjusted[, pairwise_columns_d, drop = FALSE], p.adjust, method = "BH")
-        d_matrix_adj <- diffend_genes_adjusted[, pairwise_columns_d, drop = FALSE]
-      }
-      lineage_genes_p = pattern_genes_adjusted[pattern_genes_adjusted[, pairwise_columns_p] <= p_cutoff & pattern_genes_adjusted$median_FC_pattern >= FC_pattern_cutoff, ]
-      lineage_genes_d = diffend_genes_adjusted[diffend_genes_adjusted[, pairwise_columns_d] <= p_cutoff & diffend_genes_adjusted$median_FC_diffend >= FC_diffend_cutoff, ]
-      cols_A <- grep("^predictA_", colnames(lineage_genes_d))
-      cols_B <- grep("^predictB_", colnames(lineage_genes_d))
-      keep_rows <- apply(lineage_genes_d[, c(cols_A, cols_B), drop = FALSE], 1, function(row) {
-      any(row > threshold, na.rm = TRUE)
-      })
-      lineage_genes_d <- lineage_genes_d[keep_rows, ]
-    }else{
-      lineage_genes_p = pattern_genes_adjusted[pattern_genes_adjusted$pvalue_combined_pattern <= p_cutoff & pattern_genes_adjusted$median_FC_pattern >= FC_pattern_cutoff, ]
-      lineage_genes_d = diffend_genes_adjusted[diffend_genes_adjusted$pvalue_combined_diffend <= p_cutoff & diffend_genes_adjusted$median_FC_diffend >= FC_diffend_cutoff, ]
-      #message("Same as high specificity test for 2 lineages")
+    lineage_genes_p['median_FC_pattern'] <- lineage_genes_p['average_FC_pattern']
+    lineage_genes_d['median_FC_diffend'] <- lineage_genes_d['average_FC_diffend']
+    
+    if(specificity == "high"){
+      lineage_genes_p = lineage_genes_p[lineage_genes_p[, pairwise_columns_p] <= p_cutoff & lineage_genes_p$median_FC_pattern >= FC_pattern_cutoff, ]
+      lineage_genes_d = lineage_genes_d[lineage_genes_d[, pairwise_columns_d] <= p_cutoff & lineage_genes_d$median_FC_diffend >= FC_diffend_cutoff, ]
     }
   }
+  lineage_genes_p <- format_quasipoisson_cols(lineage_genes_p)
+  lineage_genes_d <- format_quasipoisson_cols(lineage_genes_d)
   gene = union(rownames(lineage_genes_p), rownames(lineage_genes_d))
   #p_df <- pattern_genes_filtered[gene, c("waldStat_combined_pattern"), drop = FALSE]
   #d_df <- diffend_genes_filtered[gene, c("waldStat_combined_diffend"), drop = FALSE]
+  # 1. Merge the datasets
+  merged_df <- merge(lineage_genes_p[, c("pvalue_meta", "I"), drop = FALSE], 
+                     lineage_genes_d[, c("pvalue_meta", "I"), drop = FALSE], 
+                     by = 0, 
+                     all = TRUE)
+  rownames(merged_df) <- merged_df$Row.names
+  colnames(merged_df) <- c("Row.names", "pvalue_p", "I_p", "pvalue_d", "I_d")
+  merged_df$I <- pmax(merged_df$I_p, merged_df$I_d, na.rm = TRUE)
+  merged_df$Row.names <- NULL
+  merged_df <- merged_df[, c("pvalue_p", "pvalue_d", "I")]
+  merged_df <- merged_df[gene, ]
+  
   p_df <- pattern_genes_adjusted[gene, c("median_FC_pattern"), drop = FALSE]
+  rownames(p_df) <- gene
   d_df <- diffend_genes_adjusted[gene, c("median_FC_diffend"), drop = FALSE]
+  rownames(d_df) <- gene
   p_df <- p_df[rownames(d_df), , drop = FALSE]
-  merged <- cbind(p_df, d_df)
+  merged <- cbind(p_df, d_df, merged_df)
+  colnames(merged) <- c("median_FC_pattern", "median_FC_diffend", "pvalue_meta_patterntest", "pvalue_meta_diffendtest", "moranI")
   #merged$transientScore <- 
   #rank(-merged$waldStat_combined_pattern, ties.method = "min")^2 + rank(-merged$waldStat_combined_diffend, ties.method = "min")^2
   merged$transientScore <- 
@@ -2106,6 +2116,7 @@ format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_p
   lineage_spec <- list("pattern_filtered" = lineage_genes_p, "pattern_prefiltered" = pattern_genes_adjusted, "diffend_filtered" = lineage_genes_d, "diffend_prefiltered" = diffend_genes_adjusted, "combined" = lineage_spec_genes)
   lineage_spec
 }
+  
 prepare_pt_flat <- function(cds, lineages) {
   # This list will temporarily hold the vectors for each BP
   all_pts_collected <- list()
@@ -2182,53 +2193,102 @@ format_branch_specific_genes_bp <- function(branch_point, cds, branch_number = 1
   for(lineage in branches_1){
     lineage_genes = cds@lineage_genes[[lineage]][["filtered"]][["quasipoisson"]][["pattern_prefiltered"]]
     FC_names = c()
+    p_names = c()
+    predict_names = c()
     for(lin in branches_2){
       FC_names = c(FC_names, paste0("log2FC_", lineage, "vs", lin, "_"))
-    }
-    p_names = c()
-    for(lin in branches_2){
       p_names = c(p_names, paste0("pvalue_", lineage, "vs", lin, "_"))
+      predict_names = c(predict_names, paste0("predictA_", lineage, "vs", lin, "_"))
     }
-    search_pattern <- paste(c(FC_names, p_names), collapse = "|")
+    search_pattern <- paste(c(FC_names, p_names, predict_names), collapse = "|")
     lineage_genes_filtered <- lineage_genes[, grep(search_pattern, colnames(lineage_genes))]
     has_fc <- rowSums(!is.na(lineage_genes_filtered[, grepl("log2FC", colnames(lineage_genes_filtered)), drop = FALSE])) > 0
     has_p  <- rowSums(!is.na(lineage_genes_filtered[, grepl("pvalue", colnames(lineage_genes_filtered)), drop = FALSE])) > 0
-    lineage_genes_filtered <- lineage_genes_filtered[has_fc & has_p, ]
+    lineage_genes_filtered <- lineage_genes_filtered[has_fc & has_p, ,drop = FALSE]
     fc_cols <- grep("log2FC", colnames(lineage_genes_filtered), value = TRUE)
     p_cols  <- grep("pvalue", colnames(lineage_genes_filtered), value = TRUE)
+    predictA_cols  <- grep("predictA", colnames(lineage_genes_filtered), value = TRUE)
+    
+    #pass_predict <- rowMeans(lineage_genes_filtered[, predictA_cols, drop = FALSE] >= 0.01, na.rm = TRUE) == 1
+    pass_predict <- rowSums(lineage_genes_filtered[, predictA_cols, drop = FALSE] >= 0.01, na.rm = TRUE) > 0
+    lineage_genes_filtered <- lineage_genes_filtered[which(pass_predict), ,drop = FALSE]
+    
+    lineage_genes_filtered$pvalue_meta  <- apply(lineage_genes_filtered[, p_cols, drop = FALSE], 1, get_meta_p)
+    lineage_genes_filtered[, p_cols] <- lapply(lineage_genes_filtered[, p_cols, drop = FALSE], p.adjust, method = "BH")
+    lineage_genes_filtered$pvalue_meta <- p.adjust(lineage_genes_filtered$pvalue_meta, method = "BH")
+    
     pass_fc <- rowMeans(lineage_genes_filtered[, fc_cols, drop = FALSE] >= FC_cutoff, na.rm = TRUE) == 1
     pass_p  <- rowMeans(lineage_genes_filtered[, p_cols, drop = FALSE] <= p_cutoff, na.rm = TRUE) == 1
-    lineage_spec_genes <- lineage_genes_filtered[which(pass_fc & pass_p), ]
+    lineage_spec_genes <- lineage_genes_filtered[which(pass_fc & pass_p), ,drop = FALSE]
+    
     branch_genes[[lineage]] <- lineage_spec_genes
     branch_gene_names[[lineage]] <- rownames(lineage_spec_genes)
   }
   branch_gene_names = Reduce(intersect, branch_gene_names)
   median_FC_matrix = matrix(0,nrow = length(branch_gene_names), ncol = 0)
+  meta_p_matrix = matrix(0,nrow = length(branch_gene_names), ncol = 0)
   for(lineage in branches_1){
     lineage_genes = branch_genes[[lineage]]
     FC_names = c()
+    
     for(lin in branches_2){
       FC_names = c(FC_names, paste0("log2FC_", lineage, "vs", lin, "_"))
     }
-    search_fc_pattern <- paste(FC_names, collapse = "|")
+    search_fc_pattern <- paste(c(FC_names), collapse = "|")
     FCs <- lineage_genes[branch_gene_names, grep(search_fc_pattern, colnames(lineage_genes)), drop = FALSE]
     median_FC_matrix = cbind(median_FC_matrix, FCs)
+    pvalue <- lineage_genes[branch_gene_names, 'pvalue_meta', drop = FALSE]
+    meta_p_matrix = cbind(meta_p_matrix, pvalue)
+    branch2_names_str <- paste(branches_2, collapse = "&")
+    colnames(meta_p_matrix)[ncol(meta_p_matrix)] <- paste0("pvalue_meta_", lineage, " vs ", branch2_names_str)
   }
   if(ncol(median_FC_matrix)==1){
     median_FC <- setNames(median_FC_matrix[,1], rownames(median_FC_matrix))
   }else{
     median_FC = apply(median_FC_matrix, 1, median)
   }
-  final_out = median_FC
+  meta_p_matrix <- meta_p_matrix[names(median_FC), ,drop = FALSE]
+  final_out = cbind(median_FC, meta_p_matrix)
   final_out = as.data.frame(final_out)
   rownames(final_out) <- names(median_FC)
   lineage_string <- paste(branches_1, collapse = "_")
   branch_label <- paste0(bp_name, "_", lineage_string)
   final_out$branch <- branch_label
-  colnames(final_out) <- c("median_FC", "specific_to_lineages")
+  colnames(final_out) <- c("median_FC", colnames(meta_p_matrix), "specific_to_lineages")
   final_out = final_out[with(final_out, order(-abs(median_FC))), ]
   final_out
 }
 
+
+process_lineage <- function(df, adj_matrix, fc_matrix, p_cutoff, fc_cutoff, type = "quasipoisson") {
+  
+  # 1. Row filtering logic: 
+  # Checks that every non-NA p-value is below cutoff AND every non-NA FC is above cutoff
+  p_pass  <- rowSums(adj_matrix <= p_cutoff, na.rm = TRUE) == rowSums(!is.na(adj_matrix))
+  fc_pass <- rowSums(fc_matrix >= fc_cutoff, na.rm = TRUE) == rowSums(!is.na(fc_matrix))
+  
+  # Combine conditions
+  df <- df[p_pass & fc_pass, ]
+  return(df)
+}
+
+
+format_quasipoisson_cols <- function(df) {
+  # We use any_of() and matches() to ensure the function is robust 
+  # even if some columns aren't present in every dataset.
+  df_formatted <- df %>%
+    select(
+      matches("^waldStat|^log2FC"),
+      starts_with("predictA"),
+      starts_with("predictB"),
+      starts_with("pvalue"),
+      -any_of("pvalue_meta"),           # Temporarily remove to re-position at the end
+      matches("^average_FC|^median_FC"),
+      any_of("I"),
+      any_of("pvalue_meta")             # Add it back at the very end
+    )
+  
+  return(df_formatted)
+}
 
                           
