@@ -1965,7 +1965,7 @@ quasi_test_bp <- function(cds){
   return(cds)
 }
 
-format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_pattern_cutoff = 0.2, FC_diffend_gen = 0.009, FC_diffend_cutoff = 0.4, dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05, threshold = 0.1, threshold_fc = 5, p_adjust = "BH", specificity = "high", dynamic_test = "Moran", type){
+format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4, dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05, threshold = 0.1, threshold_fc = 5, p_adjust = "BH", specificity = "high", dynamic_test = "Moran", type){
   lineages = names(cds@lineages)
   pattern_genes = cds@lineage_genes[[lineage]][["lineage_genes"]][[type]]$pattern_test
   diffend_genes = cds@lineage_genes[[lineage]][["lineage_genes"]][[type]]$diffend_test
@@ -1998,9 +1998,6 @@ format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_p
   #diffend_genes_adjusted <- diffend_genes[(!is.na(diffend_genes$average_FC_diffend) & !is.na(diffend_genes$pvalue_combined_diffend)),]
   pattern_genes_adjusted <- pattern_genes[!is.na(pattern_genes$average_FC_pattern),]
   diffend_genes_adjusted <- diffend_genes[!is.na(diffend_genes$average_FC_diffend),]
-  #For diffend test, filter the endpoint values
-  predictA_cols <- grep("^predictA_", colnames(diffend_genes_adjusted), value = TRUE)
-  diffend_genes_adjusted <- diffend_genes_adjusted[rowSums(diffend_genes_adjusted[, predictA_cols, drop = FALSE] >= FC_diffend_gen, na.rm = TRUE) > 0, ]
   
   if(p_adjust != FALSE){
     pairwise_columns_p <- grep("^pvalue_.*vs.*_pattern$", colnames(pattern_genes_adjusted), value = TRUE)
@@ -2019,6 +2016,7 @@ format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_p
     lineage_genes_d$pvalue_meta <- p.adjust(lineage_genes_d$pvalue_meta, method = "BH")
     #d_matrix_adj <- diffend_genes_adjusted[, pairwise_columns_d, drop = FALSE]
   }
+  predictA_cols <- grep("^predictA_", colnames(lineage_genes_d), value = TRUE)
   study_names <- gsub("^pvalue_|_diffend$", "", pairwise_columns_d)
   log2FC_cols <- paste0("log2FC_", study_names, "_diffend") 
   row_mask <- rowSums(lineage_genes_d[, predictA_cols, drop = FALSE] > 0.05, na.rm = TRUE) > 0
@@ -2039,7 +2037,6 @@ format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_p
       }
     }
   }
-  d_matrix_adj <- lineage_genes_d[, pairwise_columns_d, drop = FALSE]
   if(length(lineages) > 2){
     FCs_p = lineage_genes_p[, grepl("log2FC", colnames(lineage_genes_p))]
     median_FC_p <- apply(FCs_p, 1, median, na.rm = TRUE)
@@ -2058,14 +2055,17 @@ format_lineage_specific_genes_bp <- function(lineage, cds, p_cutoff = 0.05, FC_p
     if(specificity == "high"){
       lineage_genes_p <- process_lineage(lineage_genes_p, p_matrix_adj, FCs_p, p_cutoff = p_cutoff, fc_cutoff = FC_pattern_cutoff, type = "quasipoisson")
       #predictA_cols <- grep("^predictA_", colnames(diffend_genes_adjusted), value = TRUE)
+      #mean_predictA <- rowMeans(lineage_genes_d[, predictA_cols], na.rm = TRUE)
+      #lineage_genes_d <- lineage_genes_d[rowSums(lineage_genes_d[, predictA_cols, drop = FALSE] > 0.002, na.rm = TRUE) == length(predictA_cols), ]
+      lineage_genes_d <- lineage_genes_d[rowSums(lineage_genes_d[, predictA_cols, drop = FALSE] >= 0.002, na.rm = TRUE) > 0, ]
+      d_matrix_adj <- lineage_genes_d[, pairwise_columns_d, drop = FALSE]
+      FCs_d = lineage_genes_d[, grepl("log2FC", colnames(lineage_genes_d))]
       mean_predictA <- rowMeans(lineage_genes_d[, predictA_cols], na.rm = TRUE)
-      #dynamic_cutoff <- ifelse(mean_predictA <= 0.05, 0.95,
-                               #ifelse(mean_predictA > 1, 0.6, 
-                                      #ifelse(mean_predictA > 0.1, 0.55, 0.7)))
-      dynamic_cutoff <- ifelse(mean_predictA < 0.05, 0.9,
-                               ifelse(mean_predictA < 0.1, 0.7, 
-                                      ifelse(mean_predictA >= 5, 0.6, 
-                                             ifelse(mean_predictA > 0.15, 0.55, 0.64))))
+      dynamic_cutoff <- ifelse(mean_predictA < 0.009, 1.25,
+                               ifelse(mean_predictA < 0.05, 0.9,
+                                      ifelse(mean_predictA < 0.1, 0.7, 
+                                             ifelse(mean_predictA >= 5, 0.6, 
+                                                    ifelse(mean_predictA > 0.15, 0.55, 0.64)))))
       comparison_matrix <- sweep(FCs_d, 1, dynamic_cutoff, ">=")
       fc_pass <- rowSums(comparison_matrix, na.rm = TRUE) == rowSums(!is.na(FCs_d))
       p_pass <- rowSums(d_matrix_adj <= p_cutoff, na.rm = TRUE) == rowSums(!is.na(d_matrix_adj))
