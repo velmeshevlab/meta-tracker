@@ -2210,14 +2210,16 @@ format_branch_specific_genes_bp <- function(branch_point, cds, branch_number = 1
     predictA_cols  <- grep("predictA", colnames(lineage_genes_filtered), value = TRUE)
     
     #pass_predict <- rowMeans(lineage_genes_filtered[, predictA_cols, drop = FALSE] >= 0.01, na.rm = TRUE) == 1
-    pass_predict <- rowSums(lineage_genes_filtered[, predictA_cols, drop = FALSE] >= 0.01, na.rm = TRUE) > 0
-    lineage_genes_filtered <- lineage_genes_filtered[which(pass_predict), ,drop = FALSE]
+    #pass_predict <- rowSums(lineage_genes_filtered[, predictA_cols, drop = FALSE] >= 0.01, na.rm = TRUE) > 0
+    #lineage_genes_filtered <- lineage_genes_filtered[which(pass_predict), ,drop = FALSE]
     
     lineage_genes_filtered$pvalue_meta  <- apply(lineage_genes_filtered[, p_cols, drop = FALSE], 1, get_meta_p)
     lineage_genes_filtered[, p_cols] <- lapply(lineage_genes_filtered[, p_cols, drop = FALSE], p.adjust, method = "BH")
     lineage_genes_filtered$pvalue_meta <- p.adjust(lineage_genes_filtered$pvalue_meta, method = "BH")
     
-    pass_fc <- rowMeans(lineage_genes_filtered[, fc_cols, drop = FALSE] >= FC_cutoff, na.rm = TRUE) == 1
+    mean_predictA <- rowMeans(lineage_genes_filtered[, predictA_cols, drop = FALSE], na.rm = TRUE)
+    dynamic_cutoff <- ifelse(mean_predictA < 0.01, 0.6, FC_cutoff)
+    pass_fc <- rowMeans(lineage_genes_filtered[, fc_cols, drop = FALSE] >= dynamic_cutoff, na.rm = TRUE) == 1
     pass_p  <- rowMeans(lineage_genes_filtered[, p_cols, drop = FALSE] <= p_cutoff, na.rm = TRUE) == 1
     lineage_spec_genes <- lineage_genes_filtered[which(pass_fc & pass_p), ,drop = FALSE]
     
