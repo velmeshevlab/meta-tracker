@@ -550,7 +550,7 @@ graph_selection_interactive <- function(cds,
           geom_segment(
             data = edges,
             aes(x = x, y = y, xend = xend, yend = yend),
-            size = segment_size, alpha = 0.3, color = "grey70"
+            size = segment_size, alpha = 0.5, color = "cyan"
           ) +
           {if (nrow(rv$highlight_edges) > 0) geom_segment(
             data = rv$highlight_edges,
