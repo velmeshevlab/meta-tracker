@@ -76,10 +76,8 @@ plot_combined_graph(cds_new, color_cells_by = "age_reorder") + umap_theme + them
 You can specify clusters to consider to make sure not to include cells from clusters you know belong to a different fate, adjust the radius around the node to select cells in (N) and enable multithreading with cl parameter. You can first plot clusters using monocle3's plot_cells function.
 ```
   plot_cells(cds_new, label_roots = F, label_leaves = F, label_branch_points = F, group_label_size = 5)
-  sel.cluster = c("5", "7", "10", "19", "8", "16", "0", "15", "20", "17", "2", "1", "9")
-  cds <- isolate_lineage(cds, lineage, sel_clusters = sel.cluster, cl = 4, N = 2)
 ```
-Do a sanity check by running cell selection for one lineage and plotting the selected cells. Adjust N if needed.
+First, do a sanity check by running cell selection for one lineage and plotting the selected cells. Adjust N if needed.
 ```
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "6")
   cds_new <- isolate_lineage(cds_new, "VIP", sel_clusters = sel.cluster, cl = 16, N = 0.3)
