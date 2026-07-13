@@ -79,6 +79,7 @@ compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, method = "sum",
   #prepare umap
   UMAP <- reducedDims(cds_subset)[["UMAP"]]
   UMAP <- UMAP[rownames(exp_sum),]
+  colnames(UMAP) <- c("umap_1", "umap_2")
   if(ID == FALSE){
     if (N >= nrow(exp_sum)){
       stop(sprintf(
