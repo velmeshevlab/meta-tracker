@@ -1,0 +1,42 @@
+Package: metatracker
+Type: Package
+Title: Lineage Tracking and Differential Expression Across Developmental Trajectories
+Version: 0.1.0
+Authors@R:
+    person(given = "Dmitry", family = "TODO", role = c("aut", "cre"),
+           email = "TODO@example.com")
+Description: Tools for isolating single-cell lineages from a monocle3 principal
+    graph, filtering expressed genes, and running within-lineage and
+    between-lineage differential expression with tradeSeq, including
+    branch-point detection, branch labelling, and trajectory visualisation.
+    Extends the monocle3 'cell_data_set' class with slots for lineages,
+    graphs, pseudotime, expression, and differential-expression results.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1
+Depends:
+    R (>= 4.1),
+    monocle3
+Imports:
+    methods,
+    stats,
+    grDevices,
+    Matrix,
+    igraph,
+    ggplot2,
+    plotly,
+    shiny,
+    dplyr,
+    tibble,
+    stringr,
+    colorspace,
+    S4Vectors,
+    SingleCellExperiment,
+    SummarizedExperiment,
+    tradeSeq,
+    BiocParallel,
+    pbapply
+Remotes:
+    cole-trapnell-lab/monocle3
+biocViews:

@@ -1,0 +1,40 @@
+# Hand-written NAMESPACE.
+# If you switch to roxygen2, add @importFrom / @import tags to the R files and
+# regenerate with devtools::document(); until then, maintain this file directly.
+
+# ---- exported public API (the 10 user-facing functions) ----
+export(import_monocle)
+export(graph_mod_interactive)
+export(graph_selection_interactive)
+export(plot_combined_graph)
+export(isolate_lineage)
+export(filter_by_expression)
+export(within_lineage_DE_par)
+export(lineage_specific_genes_par)
+export(format_lineage_genes)
+export(label_branches)
+
+exportClasses(metatracker_data_set)
+
+# ---- imports ----
+# Full imports for packages used pervasively (many symbols each).
+import(igraph)
+import(ggplot2)
+import(shiny)
+import(plotly)
+
+# Targeted imports elsewhere (avoids masking, e.g. union/filter clashes).
+importFrom(dplyr, mutate, slice, semi_join, select, distinct, bind_rows, filter, "%>%")
+importFrom(tibble, tibble)
+importFrom(stringr, str_split_i)
+importFrom(colorspace, qualitative_hcl)
+importFrom(Matrix, rowSums)
+importFrom(S4Vectors, metadata)
+importFrom(SingleCellExperiment, counts, reducedDims)
+importFrom(SummarizedExperiment, colData, rowData)
+importFrom(tradeSeq, fitGAM, patternTest, diffEndTest, conditionTest, associationTest)
+importFrom(monocle3, principal_graph, size_factors)
+importFrom(pbapply, pbapply, pblapply)
+importFrom(methods, setClass, new, as)
+importFrom(stats, p.adjust, median, quantile, setNames)
+importFrom(grDevices, pdf, dev.off, adjustcolor)
