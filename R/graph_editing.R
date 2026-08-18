@@ -32,7 +32,7 @@ graph_mod_interactive <- function(cds,
   sample_size <- ceiling(total_cells / N)
   sampled_cells <- cell_coords %>% slice(sample(seq_len(total_cells), sample_size))
   
-  cds_exprs_all <- SingleCellExperiment::counts(cds)[ , sampled_cells$cell_id, drop = FALSE]
+  cds_exprs_all <- as.matrix(SingleCellExperiment::counts(cds)[ , sampled_cells$cell_id, drop = FALSE])
   cds_exprs_all <- t(t(cds_exprs_all) / size_factors(cds)[sampled_cells$cell_id])
   
   el <- as.data.frame(get.edgelist(g), stringsAsFactors = FALSE)
@@ -305,7 +305,7 @@ graph_selection_interactive <- function(cds,
     slice(sample(seq_len(total_cells), sample_size))
   
   # Precompute normalized expression for sampled cells
-  cds_exprs_all <- counts(cds)[ , sampled_cells$cell_id, drop = FALSE]
+  cds_exprs_all <- as.matrix(counts(cds)[ , sampled_cells$cell_id, drop = FALSE])
   cds_exprs_all <- t(t(cds_exprs_all) / size_factors(cds)[sampled_cells$cell_id])
   
   # Build edges data frame
