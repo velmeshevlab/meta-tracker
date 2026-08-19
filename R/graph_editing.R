@@ -636,11 +636,12 @@ get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt =
   cds_subset@principal_graph[["UMAP"]] <- sub.graph
   cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[, names(V(sub.graph))]
   cds_subset@clusters[["UMAP"]]$partitions <- cds_subset@clusters[["UMAP"]]$partitions[colnames(cds_subset)]
-  # recalculate closest vertex for the selected cells
+  # recalculate closest vertex for the selected cells (vectorised)
   cells_UMAP = as.data.frame(reducedDims(cds_subset)[["UMAP"]])
   colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
-  closest_vertex = apply(cells_UMAP[, c("UMAP_1", "UMAP_2")], 1, .calculate_closest_vertex,
-                         nodes = as.matrix(nodes_UMAP[, names(V(sub.graph))]))
+  closest_vertex = .assign_closest_vertex(
+    as.matrix(cells_UMAP[, c("UMAP_1", "UMAP_2")]),
+    as.matrix(nodes_UMAP[, names(V(sub.graph))]))
   closest_vertex = as.data.frame(closest_vertex)
   cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
   if (isTRUE(recalculate_pt)) {
@@ -668,9 +669,24 @@ get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt =
   start
 }
 
-# Index of the graph vertex nearest a cell's UMAP coordinates.
-.calculate_closest_vertex <- function(cells, nodes) {
-  new.pos = as.numeric(cells)
-  nearest.idx <- which.min(colSums((nodes - new.pos)^2))
-  as.integer(gsub("Y_", "", names(nearest.idx)))
+# Nearest graph vertex for every cell, vectorised.
+# cells: M x 2 (cell UMAP coords); nodes: 2 x K (dims x graph nodes, Y_* names).
+# Returns an integer vector (node numbers) named by cell, matching the old
+# per-cell apply() output but computed with BLAS matrix ops in chunks.
+.assign_closest_vertex <- function(cells, nodes, chunk = 20000) {
+  nodesK     <- t(nodes)                 # K x 2
+  node_sq    <- rowSums(nodesK^2)        # K
+  node_names <- colnames(nodes)          # "Y_1", ...
+  M   <- nrow(cells)
+  out <- integer(M)
+  for (s in seq(1, M, by = chunk)) {
+    idx   <- s:min(s + chunk - 1L, M)
+    # ||c - n||^2 argmin over n <=> argmax of (2 c.n - ||n||^2)
+    score <- 2 * (cells[idx, , drop = FALSE] %*% t(nodesK))
+    score <- sweep(score, 2, node_sq, "-")
+    nn    <- max.col(score, ties.method = "first")
+    out[idx] <- as.integer(gsub("Y_", "", node_names[nn]))
+  }
+  names(out) <- rownames(cells)
+  out
 }
