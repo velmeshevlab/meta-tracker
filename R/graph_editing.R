@@ -599,3 +599,78 @@ dists = append(dist,dists)
 }
 return(mean(dists))
 }
+#' Subset a metatracker object to one lineage and (re)compute pseudotime
+#'
+#' Extracts the cells of a lineage, restricts the principal graph and its
+#' auxiliary coordinates to that lineage, and — unless \code{recalculate_pt =
+#' FALSE} — reprojects cells onto the sub-graph and re-orders pseudotime from
+#' the shared start node.
+#'
+#' @param cds A \code{metatracker_data_set}.
+#' @param lineage Lineage name (e.g. "VIP"); \code{FALSE} keeps all cells.
+#' @param N Optional cap: randomly downsample to \code{N} cells.
+#' @param recalculate_pt Reproject and re-order pseudotime on the subset (default TRUE).
+#' @return The subset \code{cds}.
+#' @export
+get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = TRUE) {
+  start = .find_start_node(cds)
+  if (lineage != FALSE) {
+    sub.graph = cds@graphs[[lineage]]
+    sel.cells = cds@lineages[[lineage]]
+  } else {
+    sel.cells = colnames(cds)
+  }
+  sel.cells = sel.cells[sel.cells %in% colnames(cds)]
+  nodes_UMAP = cds@principal_graph_aux[["UMAP"]]$dp_mst
+  if (N != FALSE) {
+    if (N < length(sel.cells)) {
+      sel.cells = sample(sel.cells, N)
+    }
+  }
+  # subset the monocle object
+  cds_subset = cds[, sel.cells]
+  # set the graph, node and cell UMAP coordinates
+  if (lineage == FALSE) {
+    sub.graph = principal_graph(cds_subset)[["UMAP"]]
+  }
+  cds_subset@principal_graph[["UMAP"]] <- sub.graph
+  cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[, names(V(sub.graph))]
+  cds_subset@clusters[["UMAP"]]$partitions <- cds_subset@clusters[["UMAP"]]$partitions[colnames(cds_subset)]
+  # recalculate closest vertex for the selected cells
+  cells_UMAP = as.data.frame(reducedDims(cds_subset)[["UMAP"]])
+  colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
+  closest_vertex = apply(cells_UMAP[, c("UMAP_1", "UMAP_2")], 1, .calculate_closest_vertex,
+                         nodes = as.matrix(nodes_UMAP[, names(V(sub.graph))]))
+  closest_vertex = as.data.frame(closest_vertex)
+  cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
+  if (isTRUE(recalculate_pt)) {
+    # monocle3-internal projection helpers, pulled from the installed package
+    # (the original source_url() download would fail on restricted networks).
+    project2MST <- utils::getFromNamespace("project2MST", "monocle3")
+    ppls        <- utils::getFromNamespace("project_point_to_line_segment", "monocle3")
+    cds_subset  <- project2MST(cds_subset, ppls, FALSE, TRUE, "UMAP",
+                               nodes_UMAP[, names(V(sub.graph))])
+    cds_subset  <- order_cells(cds_subset, root_pr_nodes = start)
+  }
+  return(cds_subset)
+}
+
+# Most frequent degree-1 (leaf) node across lineage graphs = shared start.
+.find_start_node <- function(cds) {
+  nodes = c()
+  for (name in names(cds@graphs)) {
+    sub.graph = cds@graphs[[name]]
+    start_end = V(sub.graph)[degree(sub.graph) == 1]$name
+    nodes = append(nodes, start_end)
+  }
+  nodes = as.character(nodes)
+  start = names(sort(table(nodes), decreasing = TRUE)[1])
+  start
+}
+
+# Index of the graph vertex nearest a cell's UMAP coordinates.
+.calculate_closest_vertex <- function(cells, nodes) {
+  new.pos = as.numeric(cells)
+  nearest.idx <- which.min(colSums((nodes - new.pos)^2))
+  as.integer(gsub("Y_", "", names(nearest.idx)))
+}
