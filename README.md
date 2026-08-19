@@ -1,31 +1,10 @@
 # meta-tracker basic tutorial
 This is the analysis guide starting from a monocle 3 object to identify lineage-specific genes and compare conditions within the same lineage.
 ## Part one: select trajectory branches corresponding to specific lineages
-### 1.1. Load required packages:
+### 1.1. Install metatracker. Metatracker requires monocle3, which can be installed as described here: https://cole-trapnell-lab.github.io/monocle3/docs/installation/
+remotes::install_github("velmeshevlab/meta-tracker", ref = "final")
 ```
-library(monocle3)
-library(igraph)
-library(ggplot2)
-library(pbapply)
-library(devtools)
-library(dplyr)
-library(plotly)
-library(parallel)
-library(evobiR)
-library(shiny)
-library(colorspace)
-library(BiocParallel)
-library(tradeSeq)
-library(stringr)
-library(ggnewscale)
-library(pracma)
-library("metap")
-library(spdep)
-source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/between_lineage_DE.R")
-source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/compress_lineages.R")
-source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/differential_expression.R")
-source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/plotting.R")
-source_url("https://raw.githubusercontent.com/velmeshevlab/meta-tracker/dev/R/select_lineages.R")
+
 ```   
 ### 1.2. Import the monocle 3 object. We will demonstrate meta-tracker supervised lineage selection process using developing human cortical interneuron dataset. 
 ```
