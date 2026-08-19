@@ -19,7 +19,7 @@
 
 # Compress a lineage's cells into N pseudotime-ordered meta-cells and fit a
 # smoothed expectation curve per gene.
-.compress_expression <- function(cds, lineage, N, method = "sum", ID = FALSE){
+.compress_expression <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE){
   print("Updating pseudotime")
   #Extract the lineage object
   cds_sub <- get_lineage_object(cds, lineage)
@@ -88,11 +88,18 @@
     predict_pt <- seq(0, 1, length.out = N)
     mat_m <- as.matrix(mat)
     genes <- colnames(mat_m)
-    # Serial per-gene fit with a progress bar (pbapply, no `cl` = serial).
-    fit_list_2 <- pbapply::pbsapply(seq_along(genes), function(i) {
+    # Per-gene fit. Progress bar shown for single-lineage use; suppressed when
+    # called from compress_lineages() (the outer per-lineage bar is shown there,
+    # and forked children would otherwise garble the console).
+    .fitcol <- function(i) {
       .fit_m3(exp.sel = mat_m[, i], pt = d, size_factor = size_factor,
               predict_pt = predict_pt, lineage = lineage, model = model, N = N)
-    })
+    }
+    fit_list_2 <- if (isTRUE(progress)) {
+      pbapply::pbsapply(seq_along(genes), .fitcol)
+    } else {
+      sapply(seq_along(genes), .fitcol)
+    }
     colnames(fit_list_2) <- genes
     fit_list_2 = apply(fit_list_2, 2, as.numeric)
     if (method != "sum") {
@@ -138,14 +145,67 @@
 #' @param N Number of meta-cells (and prediction grid points).
 #' @param method "sum" (default) or any other value to also compute the mean matrix.
 #' @param ID Passed through to the compression routine (default FALSE).
+#' @param progress Show the per-gene progress bar (default TRUE). Set FALSE when
+#'   fitting many lineages in parallel (see \code{compress_lineages}).
 #' @return The \code{cds} with \code{@lineages}, \code{@expression},
 #'   \code{@expectation}, and \code{@pseudotime} populated for \code{lineage}.
 #' @export
-compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE){
-  exp = .compress_expression(cds, lineage = lineage, method = method, N = N, ID = ID)
+compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE){
+  exp = .compress_expression(cds, lineage = lineage, method = method, N = N,
+                             ID = ID, progress = progress)
   cds@lineages[[lineage]]    <- exp$lineage
   cds@expression[[lineage]]  <- exp$expression
   cds@expectation[[lineage]] <- exp$expectation
   cds@pseudotime[[lineage]]  <- exp$pseudotime
+  cds
+}
+
+#' Compress every lineage, optionally in parallel
+#'
+#' Runs \code{compress_lineage} across several lineages and merges the results
+#' into one object. Lineages are processed in parallel by forking on Unix/macOS
+#' (via \code{pbapply::pblapply(cl = cores)}); Windows lacks fork, so an integer
+#' \code{cores > 1} runs serially there — pass a \code{parallel::makeCluster()}
+#' object as \code{cores} to parallelise on Windows. A progress bar tracks
+#' lineages (per-gene bars are suppressed inside workers).
+#'
+#' @param cds A \code{metatracker_data_set}.
+#' @param lineages Lineage names to compress (default: all in \code{cds@lineages}).
+#' @param N Number of meta-cells per lineage.
+#' @param method "sum" (default) or any other value to also compute the mean matrix.
+#' @param ID Passed through to \code{compress_lineage} (default FALSE).
+#' @param cores Integer worker count (fork on Unix, serial on Windows), or a
+#'   cluster object from \code{parallel::makeCluster()}. Default 1 (serial).
+#' @return The \code{cds} with all requested lineages compressed.
+#' @export
+compress_lineages <- function(cds, lineages = names(cds@lineages), N,
+                              method = "sum", ID = FALSE, cores = 1){
+  if (length(lineages) == 0) stop("No lineages to compress.", call. = FALSE)
+  if (is.numeric(cores) && cores > 1 && .Platform$OS.type == "windows")
+    message("Forking is unavailable on Windows; compressing lineages serially. ",
+            "Pass a parallel::makeCluster() object as `cores` to parallelise on Windows.")
+
+  worker <- function(lin) {
+    tmp <- compress_lineage(cds, lineage = lin, N = N, method = method,
+                            ID = ID, progress = FALSE)
+    list(lineage     = tmp@lineages[[lin]],
+         expression  = tmp@expression[[lin]],
+         expectation = tmp@expectation[[lin]],
+         pseudotime  = tmp@pseudotime[[lin]])
+  }
+
+  res <- pbapply::pblapply(lineages, worker, cl = cores)
+  names(res) <- lineages
+
+  for (lin in lineages) {
+    r <- res[[lin]]
+    if (inherits(r, "try-error"))
+      stop("compress_lineage failed for lineage '", lin, "': ",
+           conditionMessage(attr(r, "condition")), call. = FALSE)
+    cds@lineages[[lin]]    <- r$lineage
+    cds@expression[[lin]]  <- r$expression
+    cds@expectation[[lin]] <- r$expectation
+    cds@pseudotime[[lin]]  <- r$pseudotime
+  }
   cds
 }
