@@ -163,27 +163,25 @@ compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE, progre
 #' Compress every lineage, optionally in parallel
 #'
 #' Runs \code{compress_lineage} across several lineages and merges the results
-#' into one object. Lineages are processed in parallel by forking on Unix/macOS
-#' (via \code{pbapply::pblapply(cl = cores)}); Windows lacks fork, so an integer
-#' \code{cores > 1} runs serially there — pass a \code{parallel::makeCluster()}
-#' object as \code{cores} to parallelise on Windows. A progress bar tracks
-#' lineages (per-gene bars are suppressed inside workers).
+#' into one object. Parallelised over lineages with \code{pbapply::pblapply},
+#' using the same \code{cl} convention as \code{isolate_lineage}: an integer
+#' forks on Unix/macOS and runs serially on Windows, or pass a cluster object to
+#' parallelise anywhere. A progress bar tracks lineages (per-gene bars are
+#' suppressed inside workers).
 #'
 #' @param cds A \code{metatracker_data_set}.
 #' @param lineages Lineage names to compress (default: all in \code{cds@lineages}).
 #' @param N Number of meta-cells per lineage.
 #' @param method "sum" (default) or any other value to also compute the mean matrix.
 #' @param ID Passed through to \code{compress_lineage} (default FALSE).
-#' @param cores Integer worker count (fork on Unix, serial on Windows), or a
-#'   cluster object from \code{parallel::makeCluster()}. Default 1 (serial).
+#' @param cl Passed to \code{pbapply::pblapply}: an integer worker count (fork on
+#'   Unix, serial on Windows) or a \code{parallel::makeCluster()} object.
+#'   Default 1 (serial). Same convention as \code{isolate_lineage}.
 #' @return The \code{cds} with all requested lineages compressed.
 #' @export
 compress_lineages <- function(cds, lineages = names(cds@lineages), N,
-                              method = "sum", ID = FALSE, cores = 1){
+                              method = "sum", ID = FALSE, cl = 1){
   if (length(lineages) == 0) stop("No lineages to compress.", call. = FALSE)
-  if (is.numeric(cores) && cores > 1 && .Platform$OS.type == "windows")
-    message("Forking is unavailable on Windows; compressing lineages serially. ",
-            "Pass a parallel::makeCluster() object as `cores` to parallelise on Windows.")
 
   worker <- function(lin) {
     tmp <- compress_lineage(cds, lineage = lin, N = N, method = method,
@@ -194,7 +192,7 @@ compress_lineages <- function(cds, lineages = names(cds@lineages), N,
          pseudotime  = tmp@pseudotime[[lin]])
   }
 
-  res <- pbapply::pblapply(lineages, worker, cl = cores)
+  res <- pbapply::pblapply(lineages, worker, cl = cl)
   names(res) <- lineages
 
   for (lin in lineages) {
