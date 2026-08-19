@@ -16,6 +16,7 @@ export(label_branches)
 export(plot_lineage_cells)
 export(get_lineage_object)
 export(compress_lineage)
+export(compress_lineages)
 
 exportClasses(metatracker_data_set)
 
@@ -42,4 +43,3 @@ importFrom(methods, setClass, new, as)
 importFrom(stats, p.adjust, median, quantile, setNames, quasipoisson, predict)
 importFrom(grDevices, pdf, dev.off, adjustcolor)
 importFrom(utils, getFromNamespace)
-importFrom(BiocParallel, bplapply, SerialParam, MulticoreParam, SnowParam)
