@@ -61,13 +61,7 @@ First, do a sanity check by running cell selection for one lineage and plotting 
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "6")
   cds_new <- isolate_lineage(cds_new, "VIP", sel_clusters = sel.cluster, cl = 8, N = 0.3)
 
-  max_UMAP_1 = max(reducedDims(cds_new)$"UMAP"[,1])
-  min_UMAP_1 = min(reducedDims(cds_new)$"UMAP"[,1])
-  max_UMAP_2 = max(reducedDims(cds_new)$"UMAP"[,2])
-  min_UMAP_2 = min(reducedDims(cds_new)$"UMAP"[,2])
-  cds_sub = get_lineage_object(cds_new, "VIP")
-  umap_theme <- theme(plot.title = element_blank(), legend.position="none", panel.border = element_blank(), axis.text.x = element_text(size=16), axis.text.y = element_text(size=16), axis.title.x = element_text(size=18, face="bold"), axis.title.y = element_text(size=18, face="bold"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"), panel.background = element_blank(), legend.title=element_text(size=16))
-  plot_cells(cds_sub, color_cells_by = "pseudotime", label_cell_groups=F, label_leaves=FALSE, label_branch_points=FALSE, graph_label_size=1.5, cell_size = 0.1, trajectory_graph_color = "cyan",   trajectory_graph_segment_size = 1.5) + scale_x_continuous(limits = c(min_UMAP_1, max_UMAP_1)) + scale_y_continuous(limits = c(min_UMAP_2, max_UMAP_2)) + theme(legend.position = "none")
+  plot_lineage_cells(cds_new, lineage = "VIP")
 ```
 ![alt text](https://github.com/velmeshevlab/meta-tracker/blob/dev/readme/VIP_sel_cells.png)
 Repeat for the rest of the trajectories.
