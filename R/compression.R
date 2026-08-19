@@ -1,16 +1,5 @@
 # Lineage expression compression into meta-cells + smoothed expectation curves.
 
-# Cross-platform parallel backend: MulticoreParam (fork) on Unix, SnowParam
-# (PSOCK) on Windows, SerialParam when cores <= 1.
-.compress_bpparam <- function(cores) {
-  if (is.null(cores) || cores <= 1) return(BiocParallel::SerialParam(progressbar = TRUE))
-  if (.Platform$OS.type == "windows") {
-    BiocParallel::SnowParam(workers = cores, progressbar = TRUE)
-  } else {
-    BiocParallel::MulticoreParam(workers = cores, progressbar = TRUE)
-  }
-}
-
 # Quasipoisson spline fit for one gene's meta-cell counts, predicted on a
 # regular pseudotime grid. Returns a length-N numeric vector (NA on failure).
 .fit_m3 <- function(exp.sel, pt, size_factor, predict_pt, lineage, model, N) {
@@ -30,7 +19,7 @@
 
 # Compress a lineage's cells into N pseudotime-ordered meta-cells and fit a
 # smoothed expectation curve per gene.
-.compress_expression <- function(cds, lineage, N, cores = 1, method = "sum", ID = FALSE){
+.compress_expression <- function(cds, lineage, N, method = "sum", ID = FALSE){
   print("Updating pseudotime")
   #Extract the lineage object
   cds_sub <- get_lineage_object(cds, lineage)
@@ -99,13 +88,11 @@
     predict_pt <- seq(0, 1, length.out = N)
     mat_m <- as.matrix(mat)
     genes <- colnames(mat_m)
-    # Cross-platform parallel fit. Capture the fit function and inputs as objects
-    # so PSOCK (Windows) workers don't need the package namespace loaded.
-    fitfun <- .fit_m3
-    FUN <- function(i) fitfun(exp.sel = mat_m[, i], pt = d, size_factor = size_factor,
-                              predict_pt = predict_pt, lineage = lineage, model = model, N = N)
-    res <- BiocParallel::bplapply(seq_along(genes), FUN, BPPARAM = .compress_bpparam(cores))
-    fit_list_2 <- do.call(cbind, res)
+    # Serial per-gene fit with a progress bar (pbapply, no `cl` = serial).
+    fit_list_2 <- pbapply::pbsapply(seq_along(genes), function(i) {
+      .fit_m3(exp.sel = mat_m[, i], pt = d, size_factor = size_factor,
+              predict_pt = predict_pt, lineage = lineage, model = model, N = N)
+    })
     colnames(fit_list_2) <- genes
     fit_list_2 = apply(fit_list_2, 2, as.numeric)
     if (method != "sum") {
@@ -144,20 +131,18 @@
 #'
 #' Bins a lineage's cells into \code{N} pseudotime-ordered meta-cells, sums (or
 #' also means) their expression, and fits a quasipoisson spline per gene to give
-#' a smoothed expectation. Gene fits run in parallel across cores on Windows,
-#' macOS, and Linux.
+#' a smoothed expectation, with a progress bar over genes.
 #'
 #' @param cds A \code{metatracker_data_set} with the lineage isolated.
 #' @param lineage Lineage name.
 #' @param N Number of meta-cells (and prediction grid points).
 #' @param method "sum" (default) or any other value to also compute the mean matrix.
-#' @param cores Worker processes for the per-gene fits (default 1 = serial).
 #' @param ID Passed through to the compression routine (default FALSE).
 #' @return The \code{cds} with \code{@lineages}, \code{@expression},
 #'   \code{@expectation}, and \code{@pseudotime} populated for \code{lineage}.
 #' @export
-compress_lineage <- function(cds, lineage, N, method = "sum", cores = 1, ID = FALSE){
-  exp = .compress_expression(cds, lineage = lineage, method = method, N = N, cores = cores, ID = ID)
+compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE){
+  exp = .compress_expression(cds, lineage = lineage, method = method, N = N, ID = ID)
   cds@lineages[[lineage]]    <- exp$lineage
   cds@expression[[lineage]]  <- exp$expression
   cds@expectation[[lineage]] <- exp$expectation
