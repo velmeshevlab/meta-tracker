@@ -95,7 +95,7 @@ First, we filter out low expressed genes. Any gene expressed in at least 1% of s
   cds_F = cds_new[expressed_genes,]
 ```
 Here, we generate 1000 meta-cells along each trajectory. We use parallel processing to speed up this step. In this case, we don't care if the cells are from the same biological sample or now, hence ID = FALSE.
-It takes ~1 hour per lineage for 275,000 cells and 15,000 genes.
+It takes ~25 min per lineage for 275,000 cells and 15,000 genes.
 ```
 cds_F = compress_lineage_v3_2(cds_F, "SST", method = "all", N = 1000, ID = FALSE)
 cds_F = compress_lineage_v3_2(cds_F, "SST_RELN", method = "all", N = 1000,ID = FALSE)
