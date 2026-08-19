@@ -53,3 +53,67 @@ plot_combined_graph <- function(cds, reduction_method = "UMAP", color_cells_by =
     theme_minimal() +
     coord_fixed()
 }
+#' Plot cells of an isolated lineage over the full embedding extent
+#'
+#' Draws the cells (and trajectory graph) of a single isolated lineage with
+#' \code{monocle3::plot_cells}, but framed to the axis limits of the *full*
+#' object so lineages are directly comparable across plots.
+#'
+#' @param cds Full \code{metatracker_data_set}: supplies the embedding limits,
+#'   and (unless \code{cds_sub} is given) the lineage to extract.
+#' @param lineage Name of the lineage to plot (e.g. "VIP"). Ignored when
+#'   \code{cds_sub} is supplied; required otherwise.
+#' @param cds_sub Optional pre-extracted lineage object. If \code{NULL}, it is
+#'   obtained with \code{get_lineage_object(cds, lineage)}.
+#' @param reduction Reduced-dimension name used for the axis limits (default "UMAP").
+#' @param color_cells_by Column passed to \code{plot_cells} (default "pseudotime").
+#' @param cell_size,graph_label_size,trajectory_graph_color,trajectory_graph_segment_size
+#'   Passed through to \code{plot_cells}.
+#' @return A \code{ggplot} object.
+#' @export
+plot_lineage_cells <- function(cds, lineage = NULL, cds_sub = NULL,
+                               reduction = "UMAP",
+                               color_cells_by = "pseudotime",
+                               cell_size = 0.1,
+                               graph_label_size = 1.5,
+                               trajectory_graph_color = "cyan",
+                               trajectory_graph_segment_size = 1.5) {
+  emb <- reducedDims(cds)[[reduction]]
+  if (is.null(emb))
+    stop("Reduction '", reduction, "' not found in reducedDims(cds).")
+  xlim <- range(emb[, 1], na.rm = TRUE)
+  ylim <- range(emb[, 2], na.rm = TRUE)
+
+  if (is.null(cds_sub)) {
+    if (is.null(lineage))
+      stop("Provide either `lineage` (to extract) or `cds_sub` (already extracted).")
+    cds_sub <- get_lineage_object(cds, lineage)
+  }
+
+  umap_theme <- theme(
+    plot.title       = element_blank(),
+    legend.position  = "none",
+    panel.border     = element_blank(),
+    axis.text.x      = element_text(size = 16),
+    axis.text.y      = element_text(size = 16),
+    axis.title.x     = element_text(size = 18, face = "bold"),
+    axis.title.y     = element_text(size = 18, face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line        = element_line(colour = "black"),
+    panel.background = element_blank(),
+    legend.title     = element_text(size = 16))
+
+  plot_cells(cds_sub,
+             color_cells_by                = color_cells_by,
+             label_cell_groups             = FALSE,
+             label_leaves                  = FALSE,
+             label_branch_points           = FALSE,
+             graph_label_size              = graph_label_size,
+             cell_size                     = cell_size,
+             trajectory_graph_color        = trajectory_graph_color,
+             trajectory_graph_segment_size = trajectory_graph_segment_size) +
+    scale_x_continuous(limits = xlim) +
+    scale_y_continuous(limits = ylim) +
+    umap_theme
+}
