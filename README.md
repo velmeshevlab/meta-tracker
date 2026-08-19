@@ -59,7 +59,7 @@ You can specify clusters to consider to make sure not to include cells from clus
 First, do a sanity check by running cell selection for one lineage and plotting the selected cells. Adjust N if needed.
 ```
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "6")
-  cds_new <- isolate_lineage(cds_new, "VIP", sel_clusters = sel.cluster, cl = 16, N = 0.3)
+  cds_new <- isolate_lineage(cds_new, "VIP", sel_clusters = sel.cluster, cl = 8, N = 0.3)
 
   max_UMAP_1 = max(reducedDims(cds_new)$"UMAP"[,1])
   min_UMAP_1 = min(reducedDims(cds_new)$"UMAP"[,1])
