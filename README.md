@@ -56,7 +56,7 @@ You can specify clusters to consider to make sure not to include cells from clus
 ```
   plot_cells(cds_new, label_roots = F, label_leaves = F, label_branch_points = F, group_label_size = 5)
 ```
-First, do a sanity check by running cell selection for one lineage and plotting the selected cells. Adjust N if needed.
+First, do a sanity check by running cell selection for one lineage and plotting the selected cells. Adjust N if needed. Takes 3 min/lineage with 8 cores.
 ```
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "6")
   cds_new <- isolate_lineage(cds_new, "VIP", sel_clusters = sel.cluster, cl = 8, N = 0.3)
