@@ -616,11 +616,13 @@ get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt =
   start = .find_start_node(cds)
   if (lineage != FALSE) {
     sub.graph = cds@graphs[[lineage]]
-    sel.cells = cds@lineages[[lineage]]
+    sel.cells = .lineage_cells(cds@lineages[[lineage]])   # handles vector OR list($name)
   } else {
     sel.cells = colnames(cds)
   }
   sel.cells = sel.cells[sel.cells %in% colnames(cds)]
+  if (length(sel.cells) == 0)
+    stop("Lineage '", lineage, "' has no cells present in cds.", call. = FALSE)
   nodes_UMAP = cds@principal_graph_aux[["UMAP"]]$dp_mst
   if (N != FALSE) {
     if (N < length(sel.cells)) {
