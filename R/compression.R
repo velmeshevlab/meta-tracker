@@ -3,7 +3,7 @@
 # Cross-platform parallel backend: MulticoreParam (fork) on Unix, SnowParam
 # (PSOCK) on Windows, SerialParam when cores <= 1.
 .compress_bpparam <- function(cores) {
-  if (is.null(cores) || cores <= 1) return(BiocParallel::SerialParam())
+  if (is.null(cores) || cores <= 1) return(BiocParallel::SerialParam(progressbar = TRUE))
   if (.Platform$OS.type == "windows") {
     BiocParallel::SnowParam(workers = cores, progressbar = TRUE)
   } else {
