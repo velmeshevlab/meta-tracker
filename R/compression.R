@@ -1,17 +1,13 @@
 # Lineage expression compression into meta-cells + smoothed expectation curves.
 
-# Start a background R process that tails `logfile` and echoes new lines to the
-# console (its stdout inherits the parent's), so worker progress written to the
-# file appears live. Returns a processx handle to kill, or NULL if processx is
-# unavailable (the run still works, just without the live stream).
+# Start a background process that tails `logfile` and shows new lines as they
+# are written. On Windows the reader opens in its OWN console window (inherited
+# stdout does not surface in the R console there); on Unix its stdout inherits
+# the R console. Returns a processx handle to kill (Unix) or NULL, plus cleans
+# up its own window on Windows via the temp script. Returns a handle/list or
+# NULL if it can't be started (the run still works, just without the stream).
 .start_progress_reader <- function(logfile) {
-  if (!requireNamespace("processx", quietly = TRUE)) {
-    message("Install 'processx' for live progress; running without the console stream.")
-    return(NULL)
-  }
-  rscript <- file.path(R.home("bin"),
-                       if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
-  code <- paste(
+  tail_code <- paste(
     'a <- commandArgs(TRUE); f <- a[1]',
     'while (!file.exists(f)) Sys.sleep(0.2)',
     'con <- file(f, "r")',
@@ -20,13 +16,46 @@
     '  if (length(l)) { cat(l, sep = "\\n"); cat("\\n"); flush(stdout()) }',
     '  Sys.sleep(0.5)',
     '}', sep = "\n")
-  tryCatch(
-    processx::process$new(rscript, c("-e", code, logfile),
-                          stdout = "", stderr = ""),
-    error = function(e) {
-      message("Could not start progress reader: ", conditionMessage(e))
-      NULL
+  rscript <- file.path(R.home("bin"),
+                       if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+
+  if (.Platform$OS.type == "windows") {
+    # Open a separate console window running the tailer. Write the code to a
+    # temp .R file and launch it in a new window; the returned closure closes it.
+    script <- tempfile(fileext = ".R")
+    writeLines(tail_code, script)
+    title <- "compress_lineages progress"
+    ok <- tryCatch({
+      system2("cmd", c("/c", "start", shQuote(title),
+                       shQuote(rscript), shQuote(script), shQuote(logfile)),
+              wait = FALSE)
+      TRUE
+    }, error = function(e) FALSE)
+    if (!ok) {
+      message("Could not open a progress window; running without the live stream.")
+      return(NULL)
+    }
+    message("Live progress in a separate window titled '", title,
+            "'. (Manual fallback: Get-Content '", logfile, "' -Wait)")
+    # Return a closer that kills that window by title and removes the temp script.
+    list(kill = function() {
+      try(system2("taskkill", c("/FI", shQuote(paste0("WINDOWTITLE eq ", title, "*")), "/T", "/F"),
+                  stdout = FALSE, stderr = FALSE), silent = TRUE)
+      try(unlink(script), silent = TRUE)
     })
+  } else {
+    if (!requireNamespace("processx", quietly = TRUE)) {
+      message("Install 'processx' for live progress; running without the console stream.")
+      return(NULL)
+    }
+    p <- tryCatch(
+      processx::process$new(rscript, c("-e", tail_code, logfile),
+                            stdout = "", stderr = ""),
+      error = function(e) { message("Could not start progress reader: ",
+                                    conditionMessage(e)); NULL })
+    if (is.null(p)) return(NULL)
+    list(kill = function() try(p$kill(), silent = TRUE))
+  }
 }
 
 # Quasipoisson spline fit for one gene's meta-cell counts, predicted on a
