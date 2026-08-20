@@ -3,7 +3,7 @@ Type: Package
 Title: Lineage Tracking and Differential Expression Across Developmental Trajectories
 Version: 0.1.0
 Authors@R:
-    person(given = "Dmitry Velmeshev", family = "TODO", role = c("aut", "cre"),
+    person(given = "Dmitry", family = "TODO", role = c("aut", "cre"),
            email = "TODO@example.com")
 Description: Tools for isolating single-cell lineages from a monocle3 principal
     graph, filtering expressed genes, and running within-lineage and
@@ -40,6 +40,8 @@ Imports:
     parallel,
     splines,
     speedglm
+Suggests:
+    processx
 Remotes:
     cole-trapnell-lab/monocle3
 biocViews:
