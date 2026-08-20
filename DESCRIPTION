@@ -35,8 +35,8 @@ Imports:
     SingleCellExperiment,
     SummarizedExperiment,
     tradeSeq,
-    BiocParallel,
     pbapply,
+    parallel,
     splines,
     speedglm
 Remotes:
