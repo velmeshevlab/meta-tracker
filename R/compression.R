@@ -1,5 +1,34 @@
 # Lineage expression compression into meta-cells + smoothed expectation curves.
 
+# Start a background R process that tails `logfile` and echoes new lines to the
+# console (its stdout inherits the parent's), so worker progress written to the
+# file appears live. Returns a processx handle to kill, or NULL if processx is
+# unavailable (the run still works, just without the live stream).
+.start_progress_reader <- function(logfile) {
+  if (!requireNamespace("processx", quietly = TRUE)) {
+    message("Install 'processx' for live progress; running without the console stream.")
+    return(NULL)
+  }
+  rscript <- file.path(R.home("bin"),
+                       if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+  code <- paste(
+    'a <- commandArgs(TRUE); f <- a[1]',
+    'while (!file.exists(f)) Sys.sleep(0.2)',
+    'con <- file(f, "r")',
+    'repeat {',
+    '  l <- readLines(con, warn = FALSE)',
+    '  if (length(l)) { cat(l, sep = "\\n"); cat("\\n"); flush(stdout()) }',
+    '  Sys.sleep(0.5)',
+    '}', sep = "\n")
+  tryCatch(
+    processx::process$new(rscript, c("-e", code, logfile),
+                          stdout = "", stderr = ""),
+    error = function(e) {
+      message("Could not start progress reader: ", conditionMessage(e))
+      NULL
+    })
+}
+
 # Quasipoisson spline fit for one gene's meta-cell counts, predicted on a
 # regular pseudotime grid. Returns a length-N numeric vector (NA on failure).
 .fit_m3 <- function(exp.sel, pt, size_factor, predict_pt, lineage, model, N) {
@@ -162,15 +191,13 @@ compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE, progre
 #'
 #' Runs \code{compress_lineage} across several lineages and merges the results
 #' into one object. Lineages are processed in chunks sized to the worker count,
-#' each chunk in fresh forked processes on Unix/macOS (or across a cluster if
-#' \code{cl} is a \code{makeCluster()} object); Windows without a cluster runs
-#' serially. Before each chunk the parent prints cumulative progress
-#' (\code{"6/11 lineages are being processed"}), and each worker prints the
-#' lineage it starts and finishes.
-#'
-#' A fresh process per lineage (never re-using a worker across lineages) avoids
-#' a deadlock seen when monocle3's \code{project2MST}/\code{order_cells} run more
-#' than once in the same forked worker.
+#' printing cumulative progress from the parent (\code{"6/11 lineages are being
+#' processed"}) before each chunk. Parallelism depends on \code{cl}: an integer
+#' \code{> 1} forks on Unix/macOS; on Windows (no fork) an integer \code{> 1}
+#' auto-creates a PSOCK cluster of that size; or pass your own
+#' \code{makeCluster()} object. PSOCK workers each receive a copy of \code{cds}
+#' and do not forward console output, so per-lineage detail on Windows comes
+#' from the parent progress prints and the optional \code{log} file.
 #'
 #' @param cds A \code{metatracker_data_set}.
 #' @param lineages Lineage names to compress (default: all in \code{cds@lineages}).
@@ -182,26 +209,41 @@ compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE, progre
 #'   as \code{isolate_lineage}.
 #' @param log Optional path to a progress log file. Each worker appends a line
 #'   when it starts and finishes a lineage (with PID and elapsed time). Useful
-#'   under forking, where console \code{message()} from workers may not surface
-#'   (e.g. in RStudio); \code{tail -f <log>} shows live progress. Default NULL
-#'   (messages go to stderr only).
+#'   Live monitoring uses a temporary progress file that each worker appends to;
+#'   a background reader echoes it to the console and the file is deleted when
+#'   the run finishes.
+#' @param monitor Show live per-lineage progress from a background reader
+#'   (default TRUE). Requires the \code{processx} package; if unavailable, the
+#'   run still works but without the live console stream.
 #' @return The \code{cds} with all requested lineages compressed.
 #' @export
 compress_lineages <- function(cds, lineages = names(cds@lineages), N,
-                              method = "sum", ID = FALSE, cl = 1, log = NULL){
+                              method = "sum", ID = FALSE, cl = 1, monitor = TRUE){
   if (length(lineages) == 0) stop("No lineages to compress.", call. = FALSE)
-  # Parent-side announcement (always visible, even when forked-worker output isn't).
   cat(sprintf("Compressing %d lineage(s): %s\n",
               length(lineages), paste(lineages, collapse = ", ")))
   utils::flush.console()
-  if (!is.null(log)) {
-    cat("", file = log)  # truncate/create
-    cat("Logging per-lineage progress to ", log, " (tail -f to watch).\n", sep = "")
+
+  parallel_run <- inherits(cl, "cluster") || (is.numeric(cl) && cl > 1)
+
+  # Progress transport: workers can't print to the console (esp. PSOCK), but they
+  # can append to a file that a background reader echoes to the console.
+  logfile <- NULL
+  reader  <- NULL
+  if (parallel_run && isTRUE(monitor)) {
+    logfile <- tempfile("compress_progress_", fileext = ".log")
+    file.create(logfile)
+    reader  <- .start_progress_reader(logfile)
   }
+  on.exit({
+    if (!is.null(reader)) { Sys.sleep(1); try(reader$kill(), silent = TRUE) }
+    if (!is.null(logfile)) unlink(logfile)   # remove the log at the end
+  }, add = TRUE)
+
   .note <- function(txt) {
     line <- sprintf("[%s pid %d] %s", format(Sys.time(), "%H:%M:%S"), Sys.getpid(), txt)
-    cat(line, "\n"); utils::flush.console()   # stdout: surfaces where message() may not
-    if (!is.null(log)) cat(line, "\n", file = log, append = TRUE)
+    if (!is.null(logfile)) cat(line, "\n", file = logfile, append = TRUE)  # -> reader
+    else { cat(line, "\n"); utils::flush.console() }                        # serial: direct
   }
 
   worker <- function(lin) {
@@ -217,21 +259,32 @@ compress_lineages <- function(cds, lineages = names(cds@lineages), N,
          pseudotime  = tmp@pseudotime[[lin]])
   }
 
-  # Quiet pbapply bars during the run; the per-process messages report progress.
+  # Quiet pbapply bars during the run; progress comes from the reader + prints.
   op <- pbapply::pboptions(type = "none")
   on.exit(pbapply::pboptions(op), add = TRUE)
 
-  # Process in chunks sized to the worker count, printing cumulative progress
-  # from the parent (visible everywhere) before each chunk. Each chunk is a
-  # fresh set of forks, so no worker is re-used across lineages.
+  # Resolve a worker backend.
+  #  - a cluster passed as `cl`         -> use it as-is
+  #  - integer cl > 1 on Unix/macOS     -> fork (mclapply, fresh process per lineage)
+  #  - integer cl > 1 on Windows        -> auto-create a PSOCK cluster (no fork on Windows)
+  #  - otherwise                        -> serial
+  clobj <- if (inherits(cl, "cluster")) cl else NULL
+  if (is.null(clobj) && is.numeric(cl) && cl > 1 && .Platform$OS.type == "windows") {
+    clobj <- parallel::makeCluster(as.integer(cl))
+    parallel::clusterEvalQ(clobj, suppressMessages(library(metatracker)))
+    on.exit(parallel::stopCluster(clobj), add = TRUE)   # only stop clusters we created
+    message("Windows: created a ", as.integer(cl),
+            "-worker PSOCK cluster (each worker holds a copy of cds).")
+  }
+
   n <- length(lineages)
-  n_workers <- if (inherits(cl, "cluster")) length(cl)
+  n_workers <- if (!is.null(clobj)) length(clobj)
                else if (is.numeric(cl)) max(1L, as.integer(cl)) else 1L
   chunks <- split(lineages, ceiling(seq_along(lineages) / n_workers))
 
   run_chunk <- function(chunk) {
-    if (inherits(cl, "cluster")) {
-      parallel::parLapply(cl, chunk, worker)
+    if (!is.null(clobj)) {
+      parallel::parLapply(clobj, chunk, worker)
     } else if (is.numeric(cl) && cl > 1 && .Platform$OS.type != "windows") {
       parallel::mclapply(chunk, worker, mc.cores = cl, mc.preschedule = FALSE)
     } else {
