@@ -651,11 +651,19 @@ get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt =
     # (the original source_url() download would fail on restricted networks).
     project2MST <- utils::getFromNamespace("project2MST", "monocle3")
     ppls        <- utils::getFromNamespace("project_point_to_line_segment", "monocle3")
-    cds_subset  <- project2MST(cds_subset, ppls, FALSE, TRUE, "UMAP",
-                               nodes_UMAP[, names(V(sub.graph))])
-    cds_subset  <- order_cells(cds_subset, root_pr_nodes = start)
+    cds_subset  <- .quiet(project2MST(cds_subset, ppls, FALSE, TRUE, "UMAP",
+                                      nodes_UMAP[, names(V(sub.graph))]))
+    cds_subset  <- .quiet(order_cells(cds_subset, root_pr_nodes = start))
   }
   return(cds_subset)
+}
+
+# Evaluate an expression while swallowing its printed output and messages
+# (e.g. monocle3's "Projecting cells to principal points ..."). Errors still
+# propagate; only stdout/messages are suppressed.
+.quiet <- function(expr) {
+  invisible(utils::capture.output(val <- suppressMessages(expr)))
+  val
 }
 
 # Most frequent degree-1 (leaf) node across lineage graphs = shared start.
