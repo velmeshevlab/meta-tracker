@@ -77,31 +77,57 @@
 
 # Compress a lineage's cells into N pseudotime-ordered meta-cells and fit a
 # smoothed expectation curve per gene.
+# Append a progress line to `logfile` (read by the background reader), or print
+# directly when there is no logfile (serial runs). Package-level so it can be
+# shipped to PSOCK workers without dragging in the caller's environment.
+.compress_note <- function(logfile, txt) {
+  line <- sprintf("[%s pid %d] %s", format(Sys.time(), "%H:%M:%S"), Sys.getpid(), txt)
+  if (!is.null(logfile)) cat(line, "\n", file = logfile, append = TRUE)
+  else { cat(line, "\n"); utils::flush.console() }
+}
+
+# One lineage's fit, run in a worker. `task` carries the small per-lineage
+# subset (cds_sub) prepared by the parent, so the full cds is never shipped.
+# Package-level so parLapply serialises it against the namespace, not the
+# compress_lineages() frame (which holds cds).
+.compress_worker <- function(task, N, method, ID, logfile) {
+  t0 <- Sys.time()
+  .compress_note(logfile, sprintf("compressing lineage '%s' ...", task$lineage))
+  r <- .compress_fit(task$cds_sub, task$lineage, task$updated_pt,
+                     task$cell_barcodes, N = N, method = method,
+                     ID = ID, progress = FALSE)
+  .compress_note(logfile, sprintf("finished lineage '%s' (%s)", task$lineage,
+                 format(round(difftime(Sys.time(), t0), 1))))
+  r
+}
+
+# Compress a lineage: project + subset via get_lineage_object, then fit.
 .compress_expression <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE){
-  #Extract the lineage object
-  cds_sub <- get_lineage_object(cds, lineage)
-  #Get pseudotime from the principal graph aux slot
-  updated_pt <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
-  #Store back in cds@lineages as a list (normalise first so re-compression of an
-  #already-compressed lineage doesn't nest a list inside `name`).
+  cds_sub       <- get_lineage_object(cds, lineage)
+  updated_pt    <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
   cell_barcodes <- .lineage_cells(cds@lineages[[lineage]])
-  cds@lineages[[lineage]] <- list(
-    name = cell_barcodes,
-    updated_pt = updated_pt)
-  sel.cells = cell_barcodes
-  sel.cells = sel.cells[sel.cells %in% colnames(cds)]
+  .compress_fit(cds_sub, lineage, updated_pt, cell_barcodes,
+                N = N, method = method, ID = ID, progress = progress)
+}
+
+.compress_fit <- function(cds_sub, lineage, updated_pt, cell_barcodes, N, method = "sum", ID = FALSE, progress = TRUE){
+  # Meta-cell binning + per-gene fitting on a single lineage's subset (cds_sub).
+  # cds_sub is produced by get_lineage_object() upstream; operating on it (not the
+  # full cds) is what keeps memory small when workers run in parallel.
+  sel.cells = cell_barcodes[cell_barcodes %in% colnames(cds_sub)]
   if (length(sel.cells) == 0)
-    stop("Lineage '", lineage, "' has no cells present in cds.", call. = FALSE)
-  cds_subset = cds[, sel.cells]
-  #preprare raw count matrix
+    stop("Lineage '", lineage, "' has no cells present in the subset.", call. = FALSE)
+  cds_subset = cds_sub[, sel.cells]
+  lineage_entry <- list(name = cell_barcodes, updated_pt = updated_pt)
+  #prepare raw count matrix
   exp = as.data.frame(as.matrix(exprs(cds_subset)))
   exp_sum <- t(exp)
-  exp_sum = exp_sum[,rownames(cds)]
+  exp_sum = exp_sum[, rownames(cds_sub)]
   #prepare size factor
   size_factor <- (pData(cds_subset)[, 'Size_Factor'])
   size_factor <- size_factor[rownames(exp_sum)]
   #prepare pseudotime
-  pt <- cds@lineages[[lineage]][['updated_pt']]
+  pt <- updated_pt
   pt <- as.data.frame(pt)
   pt <- pt[rownames(exp_sum), , drop = FALSE]
   colnames(pt) <- c("pseudotime")
@@ -162,7 +188,7 @@
     if (method != "sum") {
       exp_mean <- exp
       exp_mean = (t(exp_mean)) /  (pData(cds_subset)[, 'Size_Factor'])
-      exp_mean = exp_mean[,rownames(cds)]
+      exp_mean = exp_mean[,rownames(cds_sub)]
       pt <- pt[rownames(exp_mean), , drop = FALSE]
       UMAP <- UMAP[rownames(exp_mean),]
       exp_mean = cbind(pt, UMAP, exp_mean)
@@ -184,9 +210,9 @@
         ungroup()
       meta_mean_ordered <- meta_mean[order(meta_mean$pseudotime), ]
       return(list(
-        "lineage" = cds@lineages[[lineage]], "expression" = list("sum" = meta_sum_ordered, "mean" = meta_mean_ordered), "expectation" = fit_list_2, "pseudotime"  = list("real" = meta_sum_ordered$pseudotime, "scaled" = d)))
+        "lineage" = lineage_entry, "expression" = list("sum" = meta_sum_ordered, "mean" = meta_mean_ordered), "expectation" = fit_list_2, "pseudotime"  = list("real" = meta_sum_ordered$pseudotime, "scaled" = d)))
     }
-    return(list("lineage"= cds@lineages[[lineage]], "expression" = meta_sum_ordered, "expectation" = fit_list_2, "pseudotime"  = list("real" = meta_sum_ordered$pseudotime, "scaled" = d)))
+    return(list("lineage" = lineage_entry, "expression" = meta_sum_ordered, "expectation" = fit_list_2, "pseudotime"  = list("real" = meta_sum_ordered$pseudotime, "scaled" = d)))
   }
 }
 
@@ -269,23 +295,14 @@ compress_lineages <- function(cds, lineages = names(cds@lineages), N,
     if (!is.null(logfile)) unlink(logfile)   # remove the log at the end
   }, add = TRUE)
 
-  .note <- function(txt) {
-    line <- sprintf("[%s pid %d] %s", format(Sys.time(), "%H:%M:%S"), Sys.getpid(), txt)
-    if (!is.null(logfile)) cat(line, "\n", file = logfile, append = TRUE)  # -> reader
-    else { cat(line, "\n"); utils::flush.console() }                        # serial: direct
-  }
-
-  worker <- function(lin) {
-    t0 <- Sys.time()
-    .note(sprintf("compressing lineage '%s' ...", lin))
-    tmp <- compress_lineage(cds, lineage = lin, N = N, method = method,
-                            ID = ID, progress = FALSE)
-    .note(sprintf("finished lineage '%s' (%s)", lin,
-                  format(round(difftime(Sys.time(), t0), 1))))
-    list(lineage     = tmp@lineages[[lin]],
-         expression  = tmp@expression[[lin]],
-         expectation = tmp@expectation[[lin]],
-         pseudotime  = tmp@pseudotime[[lin]])
+  # Parent-side projection + subset for one lineage (cheap: ~seconds). Produces a
+  # small per-lineage object so workers never receive the full cds.
+  prepare <- function(lin) {
+    cds_sub       <- get_lineage_object(cds, lin)
+    updated_pt    <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
+    cell_barcodes <- .lineage_cells(cds@lineages[[lin]])
+    list(lineage = lin, cds_sub = cds_sub,
+         updated_pt = updated_pt, cell_barcodes = cell_barcodes)
   }
 
   # Quiet pbapply bars during the run; progress comes from the reader + prints.
@@ -311,13 +328,19 @@ compress_lineages <- function(cds, lineages = names(cds@lineages), N,
                else if (is.numeric(cl)) max(1L, as.integer(cl)) else 1L
   chunks <- split(lineages, ceiling(seq_along(lineages) / n_workers))
 
-  run_chunk <- function(chunk) {
+  run_chunk <- function(tasks) {
     if (!is.null(clobj)) {
-      parallel::parLapply(clobj, chunk, worker)
+      # parLapply serializes the FUN's environment; use the package-level
+      # .compress_worker (env = namespace, no cds) so only the small tasks ship.
+      parallel::parLapply(clobj, tasks, .compress_worker,
+                          N = N, method = method, ID = ID, logfile = logfile)
     } else if (is.numeric(cl) && cl > 1 && .Platform$OS.type != "windows") {
-      parallel::mclapply(chunk, worker, mc.cores = cl, mc.preschedule = FALSE)
+      parallel::mclapply(tasks, .compress_worker,
+                         N = N, method = method, ID = ID, logfile = logfile,
+                         mc.cores = cl, mc.preschedule = FALSE)
     } else {
-      lapply(chunk, worker)
+      lapply(tasks, .compress_worker,
+             N = N, method = method, ID = ID, logfile = logfile)
     }
   }
 
@@ -326,7 +349,8 @@ compress_lineages <- function(cds, lineages = names(cds@lineages), N,
   for (ch in chunks) {
     done <- done + length(ch)
     cat(sprintf("%d/%d lineages are being processed\n", done, n)); utils::flush.console()
-    res <- c(res, run_chunk(ch))
+    tasks <- lapply(ch, prepare)          # parent: project + subset each lineage (cheap)
+    res   <- c(res, run_chunk(tasks))     # ship only the small subsets to workers
   }
   names(res) <- lineages
 
