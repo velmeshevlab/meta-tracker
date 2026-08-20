@@ -20,7 +20,6 @@
 # Compress a lineage's cells into N pseudotime-ordered meta-cells and fit a
 # smoothed expectation curve per gene.
 .compress_expression <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE){
-  print("Updating pseudotime")
   #Extract the lineage object
   cds_sub <- get_lineage_object(cds, lineage)
   #Get pseudotime from the principal graph aux slot
@@ -66,7 +65,6 @@
       colnames(exp_sum),
       c("pseudotime", "umap_1", "umap_2", "size_factor", "meta_cell")
     )
-    print(paste0("Compressing lineage ", lineage, " with sum"))
     meta_sum <- exp_sum %>%
       group_by(meta_cell) %>%
       summarise(
@@ -84,7 +82,6 @@
     model <- expression ~ splines::ns(pseudotime, df = 7) + offset(log(size_factor))
     size_factor = meta_sum_ordered$size_factor
     d <-  (meta_sum_ordered$pseudotime - min(meta_sum_ordered$pseudotime))/(max(meta_sum_ordered$pseudotime)-min(meta_sum_ordered$pseudotime))
-    print("Fitting curves scaled pseudotime")
     predict_pt <- seq(0, 1, length.out = N)
     mat_m <- as.matrix(mat)
     genes <- colnames(mat_m)
@@ -96,6 +93,8 @@
               predict_pt = predict_pt, lineage = lineage, model = model, N = N)
     }
     fit_list_2 <- if (isTRUE(progress)) {
+      op <- pbapply::pboptions(type = "timer")   # force the bar on for this fit
+      on.exit(pbapply::pboptions(op), add = TRUE)
       pbapply::pbsapply(seq_along(genes), .fitcol)
     } else {
       sapply(seq_along(genes), .fitcol)
@@ -115,7 +114,6 @@
         colnames(exp_mean),
         c("pseudotime", "umap_1", "umap_2", "meta_cell")
       )
-      print(paste0("Compressing lineage ", lineage, " with mean"))
       meta_mean <- exp_mean %>%
         group_by(meta_cell) %>%
         summarise(
@@ -166,8 +164,13 @@ compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE, progre
 #' into one object. Parallelised over lineages with \code{pbapply::pblapply},
 #' using the same \code{cl} convention as \code{isolate_lineage}: an integer
 #' forks on Unix/macOS and runs serially on Windows, or pass a cluster object to
-#' parallelise anywhere. A progress bar tracks lineages (per-gene bars are
-#' suppressed inside workers).
+#' parallelise anywhere.
+#'
+#' Because lineages are usually dispatched all at once, a per-lineage bar would
+#' jump straight from 0 to 100\%. Instead, the first lineage streams its own
+#' per-gene progress bar as a representative indicator of how the run is going;
+#' the other lineages fit silently. (Visible under forking; with a PSOCK cluster
+#' worker output is not forwarded to the console.)
 #'
 #' @param cds A \code{metatracker_data_set}.
 #' @param lineages Lineage names to compress (default: all in \code{cds@lineages}).
@@ -182,16 +185,22 @@ compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE, progre
 compress_lineages <- function(cds, lineages = names(cds@lineages), N,
                               method = "sum", ID = FALSE, cl = 1){
   if (length(lineages) == 0) stop("No lineages to compress.", call. = FALSE)
+  first_lin <- lineages[1]
 
   worker <- function(lin) {
+    # Only the first lineage streams its per-gene bar; the rest fit silently.
     tmp <- compress_lineage(cds, lineage = lin, N = N, method = method,
-                            ID = ID, progress = FALSE)
+                            ID = ID, progress = identical(lin, first_lin))
     list(lineage     = tmp@lineages[[lin]],
          expression  = tmp@expression[[lin]],
          expectation = tmp@expectation[[lin]],
          pseudotime  = tmp@pseudotime[[lin]])
   }
 
+  # Suppress pblapply's own per-lineage bar (uninformative when all lineages
+  # start at once); the first lineage's inner bar is shown instead.
+  op <- pbapply::pboptions(type = "none")
+  on.exit(pbapply::pboptions(op), add = TRUE)
   res <- pbapply::pblapply(lineages, worker, cl = cl)
   names(res) <- lineages
 
