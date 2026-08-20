@@ -25,17 +25,17 @@
   cds_sub <- get_lineage_object(cds, lineage)
   #Get pseudotime from the principal graph aux slot
   updated_pt <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
-  #Store back in cds@lineages as a list
-  #need to add a new slot for updated pseudotime
-  cell_barcodes <- cds@lineages[[lineage]]
+  #Store back in cds@lineages as a list (normalise first so re-compression of an
+  #already-compressed lineage doesn't nest a list inside `name`).
+  cell_barcodes <- .lineage_cells(cds@lineages[[lineage]])
   cds@lineages[[lineage]] <- list(
     name = cell_barcodes,
     updated_pt = updated_pt)
-  if(lineage != FALSE){
-    sel.cells = cds@lineages[[lineage]][['name']]
-  }
+  sel.cells = cell_barcodes
   sel.cells = sel.cells[sel.cells %in% colnames(cds)]
-  cds_subset = cds[,sel.cells]
+  if (length(sel.cells) == 0)
+    stop("Lineage '", lineage, "' has no cells present in cds.", call. = FALSE)
+  cds_subset = cds[, sel.cells]
   #preprare raw count matrix
   exp = as.data.frame(as.matrix(exprs(cds_subset)))
   exp_sum <- t(exp)
