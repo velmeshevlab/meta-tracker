@@ -20,6 +20,7 @@ Depends:
     monocle3
 Imports:
     methods,
+    utils,
     stats,
     grDevices,
     Matrix,
