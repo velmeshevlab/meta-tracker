@@ -81,17 +81,32 @@
 
 
 # --- Fit the GAM, in parallel, with a checkpoint ------------------------------
+# Append a line to the shared progress log (or message() if none). Short appends
+# to a file opened O_APPEND are effectively atomic, so worker lines don't tangle.
+.block_log <- function(logfile, txt) {
+  line <- paste0("[", format(Sys.time(), "%H:%M:%S"), "] ", txt, "\n")
+  if (is.null(logfile)) message(txt) else cat(line, file = logfile, append = TRUE)
+}
+
 # Fit one gene-block serially and return its fitGAM SCE. Top-level (namespace)
 # function so PSOCK workers resolve it by reference instead of serialising the
-# caller's frame (which holds the full counts matrix).
-.fit_gam_block <- function(counts_block, pseudotime, cellWeights, offset, nknots, family) {
+# caller's frame (which holds the full counts matrix). `job` carries the block's
+# id and its counts so each worker can log which block it is on.
+.fit_gam_block <- function(job, pseudotime, cellWeights, offset, nknots, family,
+                           n_total = NA, logfile = NULL) {
   if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
     RhpcBLASctl::blas_set_num_threads(1)
     RhpcBLASctl::omp_set_num_threads(1)
   }
-  tradeSeq::fitGAM(counts = counts_block, pseudotime = pseudotime,
-                   cellWeights = cellWeights, U = NULL, nknots = nknots,
-                   offset = offset, family = family, parallel = FALSE, sce = TRUE)
+  id <- job$id; cb <- job$counts
+  t0 <- Sys.time()
+  .block_log(logfile, sprintf("block %d/%s START  (%d genes)", id, n_total, nrow(cb)))
+  res <- tradeSeq::fitGAM(counts = cb, pseudotime = pseudotime,
+                          cellWeights = cellWeights, U = NULL, nknots = nknots,
+                          offset = offset, family = family, parallel = FALSE, sce = TRUE)
+  .block_log(logfile, sprintf("block %d/%s DONE   (%d genes, %s)",
+                              id, n_total, nrow(cb), format(round(Sys.time() - t0, 1))))
+  res
 }
 
 .fit_lineage_gam <- function(cds,
@@ -100,6 +115,7 @@
                             ncores        = 1,
                             nblocks       = NULL,   # gene-blocks; default = ncores
                             gam_file      = NULL,   # e.g. "gamlist.rds"
+                            log_file      = NULL,   # per-block progress log
                             min_metacells = 0,
                             min_count     = 1,
                             family        = "nb",
@@ -126,17 +142,35 @@
 
   # Split genes (rows) into contiguous blocks. fitGAM's per-call overhead is
   # small next to fitting thousands of genes, so coarse blocking (~one per core)
-  # keeps scheduling overhead low; raise nblocks for better load balance.
+  # keeps scheduling overhead low; raise nblocks for better load balance AND
+  # more frequent progress updates (the log/bar advance once per finished block).
   if (is.null(nblocks)) nblocks <- max(1L, as.integer(ncores))
   nblocks <- min(nblocks, ng)
   grp     <- cut(seq_len(ng), breaks = nblocks, labels = FALSE)
-  blocks  <- lapply(split(seq_len(ng), grp),
-                    function(ii) inp$counts[ii, , drop = FALSE])
+  blocks  <- split(seq_len(ng), grp)
+  # jobs bundle each block's id with its counts (references, no copy) so the id
+  # travels with the data to whichever worker fits it.
+  jobs <- lapply(seq_along(blocks),
+                 function(k) list(id = k, counts = inp$counts[blocks[[k]], , drop = FALSE]))
+  n_total <- length(jobs)
   ps <- inp$pseudotime; cw <- inp$cellWeights; off <- inp$offset
-  inp$counts <- NULL  # free the parent's full copy; blocks hold the data now
+  inp$counts <- NULL  # free the parent's full copy; jobs hold the data now
+
+  # Per-block progress log. Default to a temp file when running in parallel
+  # (worker console output is invisible); tail it to watch blocks complete.
+  if (is.null(log_file) && ncores > 1 && n_total > 1) {
+    log_file <- tempfile("metatracker_fitgam_", fileext = ".log")
+  }
+  if (!is.null(log_file)) {
+    file.create(log_file)
+    tail_hint <- if (.Platform$OS.type == "windows")
+      sprintf("Get-Content '%s' -Wait", log_file) else sprintf("tail -f '%s'", log_file)
+    message(sprintf("Per-block progress log: %s\n  (watch it live with:  %s )", log_file, tail_hint))
+  }
+
 
   t0 <- Sys.time()
-  if (ncores > 1 && length(blocks) > 1) {
+  if (ncores > 1 && length(jobs) > 1) {
     if (.Platform$OS.type == "windows") {
       cl <- parallel::makeCluster(ncores)
       on.exit(parallel::stopCluster(cl), add = TRUE)
@@ -146,19 +180,22 @@
           RhpcBLASctl::blas_set_num_threads(1); RhpcBLASctl::omp_set_num_threads(1)
         }
       })
-      sce_list <- pbapply::pblapply(blocks, .fit_gam_block, pseudotime = ps,
+      sce_list <- pbapply::pblapply(jobs, .fit_gam_block, pseudotime = ps,
                                     cellWeights = cw, offset = off, nknots = nknots,
-                                    family = family, cl = cl)
+                                    family = family, n_total = n_total,
+                                    logfile = log_file, cl = cl)
     } else {
       # fork: workers share the blocks via copy-on-write, no serialisation cost
-      sce_list <- pbapply::pblapply(blocks, .fit_gam_block, pseudotime = ps,
+      sce_list <- pbapply::pblapply(jobs, .fit_gam_block, pseudotime = ps,
                                     cellWeights = cw, offset = off, nknots = nknots,
-                                    family = family, cl = ncores)
+                                    family = family, n_total = n_total,
+                                    logfile = log_file, cl = ncores)
     }
   } else {
-    sce_list <- pbapply::pblapply(blocks, .fit_gam_block, pseudotime = ps,
+    sce_list <- pbapply::pblapply(jobs, .fit_gam_block, pseudotime = ps,
                                   cellWeights = cw, offset = off, nknots = nknots,
-                                  family = family)
+                                  family = family, n_total = n_total,
+                                  logfile = log_file)
   }
   message("fitGAM finished in ", format(Sys.time() - t0))
 
@@ -347,6 +384,7 @@ lineage_specific_genes_par <- function(cds,
                                        ncores         = 1,
                                        nblocks        = NULL,
                                        gam_file       = NULL,
+                                       log_file       = NULL,
                                        gamlist        = NULL,
                                        min_metacells  = 0,
                                        min_count      = 1,
