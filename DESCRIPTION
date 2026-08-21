@@ -39,7 +39,10 @@ Imports:
     pbapply,
     parallel,
     splines,
-    speedglm
+    speedglm,
+    grid,
+    ggnewscale,
+    RColorBrewer
 Suggests:
     processx
 Remotes:
