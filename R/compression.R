@@ -144,8 +144,11 @@
   um1_mean <- as.numeric(tapply(umap[, 1], meta_cell, mean)[as.character(seq_len(N))])
   um2_mean <- as.numeric(tapply(umap[, 2], meta_cell, mean)[as.character(seq_len(N))])
 
-  # summed gene counts per meta-cell via sparse multiply: (genes x cells) %*% (cells x N) = genes x N
-  gene_sum <- as.matrix(t(counts %*% Ind))                 # N x genes
+  # summed gene counts per meta-cell: crossprod(Ind, counts_ct) = t(Ind) %*% (cells x genes)
+  # = N x genes. Using Matrix::crossprod / Matrix::t keeps S4 dispatch explicit so it
+  # can't fall through to base t.default on a sparse object.
+  counts_ct <- Matrix::t(counts)                           # cells x genes (sparse)
+  gene_sum  <- as.matrix(Matrix::crossprod(Ind, counts_ct))  # N x genes
   ord <- order(pt_mean)
   meta_sum_ordered <- data.frame(meta_cell = ord, n_cells = n_cells[ord],
                                  pseudotime = pt_mean[ord], umap_1 = um1_mean[ord],
@@ -156,9 +159,9 @@
   meta_mean_ordered <- NULL
   if (method != "sum") {
     # per-cell normalisation then mean per meta-cell = (sum of counts/sf) / n_cells
-    counts_norm   <- counts %*% Matrix::Diagonal(x = 1 / as.numeric(sf))
-    gene_norm_sum <- as.matrix(t(counts_norm %*% Ind))     # N x genes
-    gene_mean     <- gene_norm_sum / n_cells               # row m divided by its n_cells
+    counts_norm_ct <- Matrix::Diagonal(x = 1 / as.numeric(sf)) %*% counts_ct  # scale each cell (row)
+    gene_norm_sum  <- as.matrix(Matrix::crossprod(Ind, counts_norm_ct))       # N x genes
+    gene_mean      <- gene_norm_sum / n_cells               # row m divided by its n_cells
     meta_mean_ordered <- data.frame(meta_cell = ord, n_cells = n_cells[ord],
                                     pseudotime = pt_mean[ord], umap_1 = um1_mean[ord],
                                     umap_2 = um2_mean[ord], check.names = FALSE)
