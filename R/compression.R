@@ -295,19 +295,38 @@ compress_lineages <- function(cds, lineages = names(cds@lineages), N,
     if (!is.null(logfile)) unlink(logfile)   # remove the log at the end
   }, add = TRUE)
 
-  # Parent-side projection + subset for one lineage (cheap: ~seconds). Produces a
-  # small per-lineage object so workers never receive the full cds.
-  prepare <- function(lin) {
-    cds_sub       <- get_lineage_object(cds, lin)
-    updated_pt    <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
-    cell_barcodes <- .lineage_cells(cds@lineages[[lin]])
-    list(lineage = lin, cds_sub = cds_sub,
-         updated_pt = updated_pt, cell_barcodes = cell_barcodes)
+  # ---- Phase 1: project + subset each lineage, one by one, into a list of
+  # small per-lineage objects. This runs serially in the parent and is cheap
+  # (~seconds per lineage). Workers later receive only these subsets.
+  cat("Preparing per-lineage subsets ...\n"); utils::flush.console()
+  subs <- vector("list", length(lineages)); names(subs) <- lineages
+  for (i in seq_along(lineages)) {
+    lin <- lineages[i]
+    cds_sub <- get_lineage_object(cds, lin)
+    subs[[i]] <- list(
+      lineage       = lin,
+      cds_sub       = cds_sub,
+      updated_pt    = cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]],
+      cell_barcodes = .lineage_cells(cds@lineages[[lin]]))
+    cat(sprintf("  prepared %d/%d: %s\n", i, length(lineages), lin)); utils::flush.console()
   }
 
+  # ---- Phase 2: fit in parallel over the list of subsets.
   # Quiet pbapply bars during the run; progress comes from the reader + prints.
   op <- pbapply::pboptions(type = "none")
   on.exit(pbapply::pboptions(op), add = TRUE)
+
+  # Guard: parLapply serialises the worker with its environment. If this package
+  # is source()'d into .GlobalEnv rather than installed, .compress_worker's
+  # environment IS .GlobalEnv -- which holds `cds` -- and the full object would
+  # be shipped to every worker (OOM). Detect and refuse rather than OOM silently.
+  if ((inherits(cl, "cluster") || (is.numeric(cl) && cl > 1 &&
+        .Platform$OS.type == "windows")) &&
+      environmentName(environment(.compress_worker)) == "R_GlobalEnv") {
+    stop("compress_lineages is running from .GlobalEnv (source()'d), which would ",
+         "ship the full cds to each PSOCK worker. Install and library(metatracker) ",
+         "instead of source()-ing the files, then retry.", call. = FALSE)
+  }
 
   # Resolve a worker backend.
   #  - a cluster passed as `cl`         -> use it as-is
@@ -319,19 +338,17 @@ compress_lineages <- function(cds, lineages = names(cds@lineages), N,
     clobj <- parallel::makeCluster(as.integer(cl))
     parallel::clusterEvalQ(clobj, suppressMessages(library(metatracker)))
     on.exit(parallel::stopCluster(clobj), add = TRUE)   # only stop clusters we created
-    message("Windows: created a ", as.integer(cl),
-            "-worker PSOCK cluster (each worker holds a copy of cds).")
+    message("Windows: created a ", as.integer(cl), "-worker PSOCK cluster ",
+            "(each worker receives one lineage subset, not the full cds).")
   }
 
   n <- length(lineages)
   n_workers <- if (!is.null(clobj)) length(clobj)
                else if (is.numeric(cl)) max(1L, as.integer(cl)) else 1L
-  chunks <- split(lineages, ceiling(seq_along(lineages) / n_workers))
+  chunks <- split(subs, ceiling(seq_along(subs) / n_workers))
 
   run_chunk <- function(tasks) {
     if (!is.null(clobj)) {
-      # parLapply serializes the FUN's environment; use the package-level
-      # .compress_worker (env = namespace, no cds) so only the small tasks ship.
       parallel::parLapply(clobj, tasks, .compress_worker,
                           N = N, method = method, ID = ID, logfile = logfile)
     } else if (is.numeric(cl) && cl > 1 && .Platform$OS.type != "windows") {
@@ -344,13 +361,12 @@ compress_lineages <- function(cds, lineages = names(cds@lineages), N,
     }
   }
 
-  res <- list()
+  res  <- list()
   done <- 0L
   for (ch in chunks) {
     done <- done + length(ch)
     cat(sprintf("%d/%d lineages are being processed\n", done, n)); utils::flush.console()
-    tasks <- lapply(ch, prepare)          # parent: project + subset each lineage (cheap)
-    res   <- c(res, run_chunk(tasks))     # ship only the small subsets to workers
+    res <- c(res, run_chunk(ch))
   }
   names(res) <- lineages
 
