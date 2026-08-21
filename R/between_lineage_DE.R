@@ -3,7 +3,8 @@
 # lineage_specific_genes_par() fits one tradeSeq GAM across all lineages'
 # meta-cells, runs patternTest / diffEndTest, and derives per-lineage
 # fold-changes. Relative to the first version: fitGAM can run in parallel
-# (ncores > 1) via BiocParallel and be checkpointed to disk (gam_file); AUC /
+# (ncores > 1) by fitting gene-blocks in parallel and be checkpointed to disk
+# (gam_file); AUC /
 # fold-changes are predicted once per lineage (O(L)) rather than per pair
 # (O(L^2)); an optional low-expression prefilter skips genes that cannot pass
 # the downstream filters; and the fitted model is passed through to the
@@ -80,18 +81,31 @@
 
 
 # --- Fit the GAM, in parallel, with a checkpoint ------------------------------
+# Fit one gene-block serially and return its fitGAM SCE. Top-level (namespace)
+# function so PSOCK workers resolve it by reference instead of serialising the
+# caller's frame (which holds the full counts matrix).
+.fit_gam_block <- function(counts_block, pseudotime, cellWeights, offset, nknots, family) {
+  if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
+    RhpcBLASctl::blas_set_num_threads(1)
+    RhpcBLASctl::omp_set_num_threads(1)
+  }
+  tradeSeq::fitGAM(counts = counts_block, pseudotime = pseudotime,
+                   cellWeights = cellWeights, U = NULL, nknots = nknots,
+                   offset = offset, family = family, parallel = FALSE, sce = TRUE)
+}
+
 .fit_lineage_gam <- function(cds,
                             lineages      = names(cds@lineages),
                             nknots        = 6,
                             ncores        = 1,
+                            nblocks       = NULL,   # gene-blocks; default = ncores
                             gam_file      = NULL,   # e.g. "gamlist.rds"
                             min_metacells = 0,
                             min_count     = 1,
                             family        = "nb",
                             ...) {
 
-  # Reuse an existing checkpoint if present -- this is what stops you from
-  # ever paying the 25 h again.
+  # Reuse an existing checkpoint if present.
   if (!is.null(gam_file) && file.exists(gam_file)) {
     message("Loading existing fitGAM object from ", gam_file)
     return(readRDS(gam_file))
@@ -100,43 +114,58 @@
   inp <- .prepare_gam_input(cds, lineages = lineages,
                            min_metacells = min_metacells, min_count = min_count)
 
+  ng <- nrow(inp$counts)
   message(sprintf("Testing %d genes across %d metacells, %d lineages",
-                  nrow(inp$counts), ncol(inp$counts), length(lineages)))
+                  ng, ncol(inp$counts), length(lineages)))
 
-  # Stop the BLAS from oversubscribing cores inside each forked worker.
+  # Serial BLAS in the parent too (workers set it themselves).
   if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
     RhpcBLASctl::blas_set_num_threads(1)
     RhpcBLASctl::omp_set_num_threads(1)
   }
 
-  if (ncores > 1) {
-    if (.Platform$OS.type == "windows") {
-      # Windows has no fork(); use a socket cluster instead.
-      BPPARAM <- BiocParallel::SnowParam(workers = ncores, type = "SOCK",
-                                         progressbar = TRUE)
-    } else {
-      BPPARAM <- BiocParallel::MulticoreParam(workers = ncores, progressbar = TRUE)
-    }
-    do_par  <- TRUE
-  } else {
-    BPPARAM <- BiocParallel::SerialParam()
-    do_par  <- FALSE
-  }
+  # Split genes (rows) into contiguous blocks. fitGAM's per-call overhead is
+  # small next to fitting thousands of genes, so coarse blocking (~one per core)
+  # keeps scheduling overhead low; raise nblocks for better load balance.
+  if (is.null(nblocks)) nblocks <- max(1L, as.integer(ncores))
+  nblocks <- min(nblocks, ng)
+  grp     <- cut(seq_len(ng), breaks = nblocks, labels = FALSE)
+  blocks  <- lapply(split(seq_len(ng), grp),
+                    function(ii) inp$counts[ii, , drop = FALSE])
+  ps <- inp$pseudotime; cw <- inp$cellWeights; off <- inp$offset
+  inp$counts <- NULL  # free the parent's full copy; blocks hold the data now
 
   t0 <- Sys.time()
-  message("Fitting GAM...")
-  gamlist <- tradeSeq::fitGAM(counts      = inp$counts,
-                              pseudotime  = inp$pseudotime,
-                              cellWeights = inp$cellWeights,
-                              U           = NULL,
-                              nknots      = nknots,
-                              offset      = inp$offset,
-                              family      = family,
-                              parallel    = do_par,
-                              BPPARAM     = BPPARAM,
-                              sce         = TRUE,
-                              ...)
+  if (ncores > 1 && length(blocks) > 1) {
+    if (.Platform$OS.type == "windows") {
+      cl <- parallel::makeCluster(ncores)
+      on.exit(parallel::stopCluster(cl), add = TRUE)
+      parallel::clusterEvalQ(cl, {
+        library(tradeSeq)
+        if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
+          RhpcBLASctl::blas_set_num_threads(1); RhpcBLASctl::omp_set_num_threads(1)
+        }
+      })
+      sce_list <- pbapply::pblapply(blocks, .fit_gam_block, pseudotime = ps,
+                                    cellWeights = cw, offset = off, nknots = nknots,
+                                    family = family, cl = cl)
+    } else {
+      # fork: workers share the blocks via copy-on-write, no serialisation cost
+      sce_list <- pbapply::pblapply(blocks, .fit_gam_block, pseudotime = ps,
+                                    cellWeights = cw, offset = off, nknots = nknots,
+                                    family = family, cl = ncores)
+    }
+  } else {
+    sce_list <- pbapply::pblapply(blocks, .fit_gam_block, pseudotime = ps,
+                                  cellWeights = cw, offset = off, nknots = nknots,
+                                  family = family)
+  }
   message("fitGAM finished in ", format(Sys.time() - t0))
+
+  # Reassemble the full-gene SCE. Per-cell design (colData/metadata: dm, X,
+  # knots) is identical across blocks because every block saw the same
+  # pseudotime/cellWeights; rbind stacks the per-gene rowData (beta, Sigma).
+  gamlist <- if (length(sce_list) == 1) sce_list[[1]] else do.call(rbind, sce_list)
 
   if (!is.null(gam_file)) {
     saveRDS(gamlist, gam_file)
@@ -316,6 +345,7 @@ lineage_specific_genes_par <- function(cds,
                                        lineages       = names(cds@lineages),
                                        nknots         = 6,
                                        ncores         = 1,
+                                       nblocks        = NULL,
                                        gam_file       = NULL,
                                        gamlist        = NULL,
                                        min_metacells  = 0,
