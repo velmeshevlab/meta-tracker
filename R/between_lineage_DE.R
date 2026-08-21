@@ -124,6 +124,7 @@
   }
 
   t0 <- Sys.time()
+  message("Fitting GAM...")
   gamlist <- tradeSeq::fitGAM(counts      = inp$counts,
                               pseudotime  = inp$pseudotime,
                               cellWeights = inp$cellWeights,
