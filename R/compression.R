@@ -100,19 +100,19 @@
   r
 }
 
-# Compress a lineage: project + subset via get_lineage_object, then fit.
-# Compress a lineage: project + subset, then fit. Used by compress_lineage()
-# (single lineage). For parallel use, compress_lineages() calls .compress_prep()
-# and .compress_fit_prep() separately so workers receive the small payload.
+# Compress a lineage: aggregate to meta-cells (parent), then fit (worker).
+# compress_lineage() (single lineage) runs both here; compress_lineages() calls
+# .compress_prep() in the parent and .compress_fit_prep() in workers, so workers
+# receive only the small aggregated matrices, never the per-cell data.
 .compress_expression <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE){
-  prep <- .compress_prep(cds, lineage)
+  prep <- .compress_prep(cds, lineage, N = N, method = method)
   .compress_fit_prep(prep, N = N, method = method, ID = ID, progress = progress)
 }
 
-# Parent-side: project + subset a lineage and build the SMALL per-lineage payload
-# the fit needs (dense counts + pseudotime/UMAP/size-factor), without the S4
-# cell_data_set overhead. This is what gets shipped to workers.
-.compress_prep <- function(cds, lineage){
+# Parent-side: project + subset, then bin cells into N meta-cells and aggregate
+# gene counts with a SPARSE matrix multiply (counts %*% indicator) -- no dense
+# cells x genes matrix is ever formed. Returns the small N x genes meta matrices.
+.compress_prep <- function(cds, lineage, N, method = "sum"){
   cds_sub       <- get_lineage_object(cds, lineage)
   updated_pt    <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
   cell_barcodes <- .lineage_cells(cds@lineages[[lineage]])
@@ -120,45 +120,63 @@
   if (length(sel.cells) == 0)
     stop("Lineage '", lineage, "' has no cells present in the subset.", call. = FALSE)
   cds_subset <- cds_sub[, sel.cells]
-  counts_t   <- t(as.matrix(exprs(cds_subset)))     # cells x genes (dense)
-  counts_t   <- counts_t[, rownames(cds_sub)]       # gene order
-  sf         <- pData(cds_subset)[, 'Size_Factor']
-  sf         <- sf[rownames(counts_t)]
-  pt         <- as.data.frame(updated_pt)
-  pt         <- pt[rownames(counts_t), , drop = FALSE]; colnames(pt) <- "pseudotime"
-  UMAP       <- reducedDims(cds_subset)[["UMAP"]]
-  UMAP       <- UMAP[rownames(counts_t), ];            colnames(UMAP) <- c("umap_1", "umap_2")
-  list(lineage = lineage, counts_t = counts_t, pt = pt, UMAP = UMAP,
-       size_factor = sf, cell_barcodes = cell_barcodes, updated_pt = updated_pt)
+
+  counts <- exprs(cds_subset)                    # genes x cells (kept sparse)
+  counts <- counts[rownames(cds_sub), ]          # gene order (rows)
+  cells  <- colnames(counts)
+  Ccell  <- length(cells)
+  if (N >= Ccell)
+    stop(sprintf("out of boundary: N (%d) must be smaller than number of cells (%d)", N, Ccell))
+
+  # per-cell vectors aligned to counts columns
+  sf   <- pData(cds_subset)[, "Size_Factor"]; names(sf) <- colnames(cds_subset); sf <- sf[cells]
+  ptv  <- as.numeric(updated_pt[cells])
+  umap <- reducedDims(cds_subset)[["UMAP"]][cells, , drop = FALSE]
+
+  # meta-cell assignment: bin cells by pseudotime rank (order-independent, matches
+  # the original cut(rank(pseudotime), N))
+  meta_cell <- cut(rank(ptv), breaks = N, labels = FALSE)
+  Ind <- Matrix::sparseMatrix(i = seq_len(Ccell), j = meta_cell, x = 1,
+                              dims = c(Ccell, N))          # cells x N indicator
+  n_cells  <- as.integer(Matrix::colSums(Ind))
+  pt_mean  <- as.numeric(tapply(ptv,       meta_cell, mean)[as.character(seq_len(N))])
+  sf_sum   <- as.numeric(tapply(as.numeric(sf), meta_cell, sum)[as.character(seq_len(N))])
+  um1_mean <- as.numeric(tapply(umap[, 1], meta_cell, mean)[as.character(seq_len(N))])
+  um2_mean <- as.numeric(tapply(umap[, 2], meta_cell, mean)[as.character(seq_len(N))])
+
+  # summed gene counts per meta-cell via sparse multiply: (genes x cells) %*% (cells x N) = genes x N
+  gene_sum <- as.matrix(t(counts %*% Ind))                 # N x genes
+  ord <- order(pt_mean)
+  meta_sum_ordered <- data.frame(meta_cell = ord, n_cells = n_cells[ord],
+                                 pseudotime = pt_mean[ord], umap_1 = um1_mean[ord],
+                                 umap_2 = um2_mean[ord], size_factor = sf_sum[ord],
+                                 check.names = FALSE)
+  meta_sum_ordered <- cbind(meta_sum_ordered, gene_sum[ord, , drop = FALSE])
+
+  meta_mean_ordered <- NULL
+  if (method != "sum") {
+    # per-cell normalisation then mean per meta-cell = (sum of counts/sf) / n_cells
+    counts_norm   <- counts %*% Matrix::Diagonal(x = 1 / as.numeric(sf))
+    gene_norm_sum <- as.matrix(t(counts_norm %*% Ind))     # N x genes
+    gene_mean     <- gene_norm_sum / n_cells               # row m divided by its n_cells
+    meta_mean_ordered <- data.frame(meta_cell = ord, n_cells = n_cells[ord],
+                                    pseudotime = pt_mean[ord], umap_1 = um1_mean[ord],
+                                    umap_2 = um2_mean[ord], check.names = FALSE)
+    meta_mean_ordered <- cbind(meta_mean_ordered, gene_mean[ord, , drop = FALSE])
+  }
+
+  list(lineage = lineage, meta_sum = meta_sum_ordered, meta_mean = meta_mean_ordered,
+       lineage_entry = list(name = cell_barcodes, updated_pt = updated_pt))
 }
 
-# Worker-side: meta-cell binning + per-gene quasipoisson fit from the payload.
+# Worker-side: per-gene quasipoisson fit on the (small) aggregated meta matrix.
 .compress_fit_prep <- function(prep, N, method = "sum", ID = FALSE, progress = TRUE,
                                progress_log = NULL){
-  lineage       <- prep$lineage
-  counts_t      <- prep$counts_t
-  pt            <- prep$pt
-  UMAP          <- prep$UMAP
-  sf_cell       <- prep$size_factor            # per-cell size factors (kept unmodified)
-  lineage_entry <- list(name = prep$cell_barcodes, updated_pt = prep$updated_pt)
+  lineage          <- prep$lineage
+  lineage_entry    <- prep$lineage_entry
+  meta_sum_ordered <- prep$meta_sum
   if (ID == FALSE) {
-    if (N >= nrow(counts_t)) {
-      stop(sprintf("out of boundary: N (%d) must be smaller than number of rows in exp (%d)",
-                   N, nrow(counts_t)))
-    }
-    # ---- sum branch ----
-    exp_sum <- cbind(pt, UMAP, size_factor = sf_cell, counts_t)
-    exp_sum <- exp_sum[order(exp_sum$pseudotime), ]
-    exp_sum$meta_cell <- cut(rank(exp_sum$pseudotime), breaks = N, labels = FALSE)
-    gene_cols <- setdiff(colnames(exp_sum),
-                         c("pseudotime", "umap_1", "umap_2", "size_factor", "meta_cell"))
-    meta_sum <- exp_sum %>% group_by(meta_cell) %>%
-      summarise(n_cells = n(), pseudotime = mean(pseudotime),
-                umap_1 = mean(umap_1), umap_2 = mean(umap_2),
-                size_factor = sum(size_factor),
-                across(all_of(gene_cols), sum)) %>% ungroup()
-    meta_sum_ordered <- meta_sum[order(meta_sum$pseudotime), ]
-    mat <- meta_sum_ordered[, 7:(ncol(meta_sum_ordered))]
+    mat   <- meta_sum_ordered[, 7:ncol(meta_sum_ordered)]
     model <- expression ~ splines::ns(pseudotime, df = 7) + offset(log(size_factor))
     sf_meta <- meta_sum_ordered$size_factor
     d <- (meta_sum_ordered$pseudotime - min(meta_sum_ordered$pseudotime)) /
@@ -175,8 +193,6 @@
       on.exit(pbapply::pboptions(op), add = TRUE)
       pbapply::pbsapply(seq_along(genes), .fitcol)
     } else if (!is.null(progress_log)) {
-      # Parallel workers: write per-lineage % into the log (~2% steps); the
-      # reader window echoes it so each lineage's progress is visible.
       ng <- length(genes); step <- max(1L, ng %/% 50L); last <- -1L
       out <- vector("list", ng)
       for (i in seq_len(ng)) {
@@ -193,22 +209,8 @@
     colnames(fit_list_2) <- genes
     fit_list_2 <- apply(fit_list_2, 2, as.numeric)
     if (method != "sum") {
-      # ---- mean branch: per-cell size-factor normalisation ----
-      exp_mean <- counts_t / sf_cell            # cells x genes, each cell / its size factor
-      pt2   <- pt[rownames(exp_mean), , drop = FALSE]
-      UMAP2 <- UMAP[rownames(exp_mean), ]
-      exp_mean <- cbind(pt2, UMAP2, exp_mean)
-      exp_mean <- exp_mean[order(exp_mean$pseudotime), ]
-      exp_mean$meta_cell <- cut(rank(exp_mean$pseudotime), breaks = N, labels = FALSE)
-      gene_cols <- setdiff(colnames(exp_mean),
-                           c("pseudotime", "umap_1", "umap_2", "meta_cell"))
-      meta_mean <- exp_mean %>% group_by(meta_cell) %>%
-        summarise(n_cells = n(), pseudotime = mean(pseudotime),
-                  umap_1 = mean(umap_1), umap_2 = mean(umap_2),
-                  across(all_of(gene_cols), mean)) %>% ungroup()
-      meta_mean_ordered <- meta_mean[order(meta_mean$pseudotime), ]
       return(list("lineage" = lineage_entry,
-                  "expression" = list("sum" = meta_sum_ordered, "mean" = meta_mean_ordered),
+                  "expression" = list("sum" = meta_sum_ordered, "mean" = prep$meta_mean),
                   "expectation" = fit_list_2,
                   "pseudotime" = list("real" = meta_sum_ordered$pseudotime, "scaled" = d)))
     }
@@ -356,7 +358,7 @@ compress_lineages <- function(cds, lineages = names(cds@lineages), N,
     done <- done + length(ch)
     cat(sprintf("%d/%d lineages are being processed\n", done, n)); utils::flush.console()
     # Phase 1 (this chunk): build the small per-lineage payloads in the parent.
-    preps <- lapply(ch, function(lin) .compress_prep(cds, lin))
+    preps <- lapply(ch, function(lin) .compress_prep(cds, lin, N = N, method = method))
     names(preps) <- ch
     # Phase 2 (this chunk): fit in parallel over the payloads.
     res <- c(res, run_chunk(preps))
