@@ -24,13 +24,13 @@ within_lineage_DE_par <- function(cds, lineages = names(cds@lineages), parallel 
   expr = expr[rownames(cds),]
   n_time <- ncol(expr)
   nb <- .make_time_nb(n_time, k = k)
-  lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
+  lw <- spdep::nb2listw(nb, style = "W", zero.policy = TRUE)
   expr[expr < 0] <- 0
   keep_rows <- apply(expr, 1, function(x) {
     all(is.finite(x)) && var(x) > 0})
   expr_filtered <- expr[keep_rows, , drop = FALSE]
   res <- pblapply(seq_len(nrow(expr_filtered)), function(i) {
-    mt <- moran.test(expr_filtered[i, ], lw, zero.policy = TRUE)
+    mt <- spdep::moran.test(expr_filtered[i, ], lw, zero.policy = TRUE)
     c(I = unname(mt$estimate[["Moran I statistic"]]),
       p = mt$p.value)
   }, cl = cores)
