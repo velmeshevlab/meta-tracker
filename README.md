@@ -122,3 +122,7 @@ cds_new = compress_lineages(cds, method = "all", N = 1000, ID = FALSE, cl = 5)
   lapply(1:length(branches), write_branch_genes, cds = cds_F, branch_number = 1, branches = branches)
   lapply(1:length(branches), write_branch_genes, cds = cds_F, branch_number = 2, branches = branches)
 ```
+### 2.5. Plot selected lineage-specific genes.
+```
+plot_multiple(cds_F, "LHX6", names(cds@lineages))
+```
