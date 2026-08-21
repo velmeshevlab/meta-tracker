@@ -93,7 +93,8 @@
 .compress_worker <- function(prep, N, method, ID, logfile) {
   t0 <- Sys.time()
   .compress_note(logfile, sprintf("compressing lineage '%s' ...", prep$lineage))
-  r <- .compress_fit_prep(prep, N = N, method = method, ID = ID, progress = FALSE)
+  r <- .compress_fit_prep(prep, N = N, method = method, ID = ID,
+                          progress = FALSE, progress_log = logfile)
   .compress_note(logfile, sprintf("finished lineage '%s' (%s)", prep$lineage,
                  format(round(difftime(Sys.time(), t0), 1))))
   r
@@ -132,7 +133,8 @@
 }
 
 # Worker-side: meta-cell binning + per-gene quasipoisson fit from the payload.
-.compress_fit_prep <- function(prep, N, method = "sum", ID = FALSE, progress = TRUE){
+.compress_fit_prep <- function(prep, N, method = "sum", ID = FALSE, progress = TRUE,
+                               progress_log = NULL){
   lineage       <- prep$lineage
   counts_t      <- prep$counts_t
   pt            <- prep$pt
@@ -172,6 +174,19 @@
       op <- pbapply::pboptions(type = "timer")
       on.exit(pbapply::pboptions(op), add = TRUE)
       pbapply::pbsapply(seq_along(genes), .fitcol)
+    } else if (!is.null(progress_log)) {
+      # Parallel workers: write per-lineage % into the log (~2% steps); the
+      # reader window echoes it so each lineage's progress is visible.
+      ng <- length(genes); step <- max(1L, ng %/% 50L); last <- -1L
+      out <- vector("list", ng)
+      for (i in seq_len(ng)) {
+        out[[i]] <- .fitcol(i)
+        if (i %% step == 0L || i == ng) {
+          pct <- as.integer(round(100 * i / ng))
+          if (pct != last) { .compress_note(progress_log, sprintf("%s: %d%%", lineage, pct)); last <- pct }
+        }
+      }
+      m <- do.call(cbind, out); colnames(m) <- genes; m
     } else {
       sapply(seq_along(genes), .fitcol)
     }
