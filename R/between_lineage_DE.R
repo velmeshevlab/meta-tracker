@@ -166,6 +166,10 @@
     tail_hint <- if (.Platform$OS.type == "windows")
       sprintf("Get-Content '%s' -Wait", log_file) else sprintf("tail -f '%s'", log_file)
     message(sprintf("Per-block progress log: %s\n  (watch it live with:  %s )", log_file, tail_hint))
+    # Open a separate window that streams the log (own console on Windows,
+    # inherited stdout via processx on Unix). Closed on exit.
+    reader <- .start_progress_reader(log_file, title = "lineage_specific_genes progress")
+    if (!is.null(reader)) on.exit(reader$kill(), add = TRUE)
   }
 
 
