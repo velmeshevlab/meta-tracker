@@ -398,8 +398,8 @@ lineage_specific_genes_par <- function(cds,
 
   if (is.null(gamlist)) {
     gamlist <- .fit_lineage_gam(cds, lineages = lineages, nknots = nknots,
-                               ncores = ncores, gam_file = gam_file,
-                               min_metacells = min_metacells,
+                               ncores = ncores, nblocks = nblocks, gam_file = gam_file,
+                               log_file = log_file, min_metacells = min_metacells,
                                min_count = min_count, family = family)
   }
 
