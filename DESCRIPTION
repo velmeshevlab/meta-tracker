@@ -42,7 +42,8 @@ Imports:
     speedglm,
     grid,
     ggnewscale,
-    RColorBrewer
+    RColorBrewer,
+    spdep
 Suggests:
     processx
 Remotes:
