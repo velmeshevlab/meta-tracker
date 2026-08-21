@@ -43,9 +43,12 @@ Imports:
     grid,
     ggnewscale,
     RColorBrewer,
-    spdep
+    spdep,
+    BiocParallel,
+    pracma
 Suggests:
-    processx
+    processx,
+    RhpcBLASctl
 Remotes:
     cole-trapnell-lab/monocle3
 biocViews:
