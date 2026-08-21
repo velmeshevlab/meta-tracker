@@ -212,18 +212,22 @@ plot_multiple <- function(cds, gene, lineages, meta = NULL, points = TRUE,
   step_pt <- max.pt / (N - 1)
   if (isTRUE(points)) {
     dd <- data.frame(pseudotime = seq(0, max.pt, by = step_pt))
-    fits <- c()
+    fits <- c(); exps <- c()
     for (lineage in lineages) {
       exp_df <- .cmp_expr_sum(cds, lineage)
       if (gene %in% colnames(exp_df)) {
-        expv <- as.numeric(exp_df[, gene])
+        # points must be on the fit's scale: the curve is predicted at
+        # size_factor = 1, so divide summed counts by the meta-cell size factor
+        # to get the observed rate (equivalently, the mean per unit size factor).
+        sf_col <- if ("size_factor" %in% colnames(exp_df)) as.numeric(exp_df[, "size_factor"]) else 1
+        expv <- as.numeric(exp_df[, gene]) / sf_col
         fitv <- .cmp_fit(cds, lineage, gene); if (is.null(fitv)) fitv <- rep(0, N)
       } else { expv <- rep(0, N); fitv <- rep(0, N) }
       dd[[paste0("exp_", lineage)]] <- expv
       dd[[paste0("fit_", lineage)]] <- fitv
-      fits <- c(fits, fitv)
+      fits <- c(fits, fitv); exps <- c(exps, expv)
     }
-    ymax <- max(fits)
+    ymax <- max(c(fits, exps))
   } else {
     fits <- c(); rows <- list()
     for (lineage in lineages) {
@@ -273,7 +277,7 @@ plot_multiple <- function(cds, gene, lineages, meta = NULL, points = TRUE,
     }
     q <- q + scale_x_continuous(breaks = breaks.list, labels = breaks.labels)
   }
-  q <- q + ylim(c(0, ymax)) + .monocle_theme_opts() +
+  q <- q + coord_cartesian(ylim = c(NA, ymax)) + .monocle_theme_opts() +
     ylab("Expression") + xlab("Pseudotime") + ggtitle(gene) +
     theme(legend.key.size = grid::unit(legend.key.size, "cm"),
           plot.title = element_text(size = plot.title.size, face = "bold", hjust = 0.5),
