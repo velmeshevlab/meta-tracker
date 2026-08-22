@@ -6,7 +6,7 @@
 # the R console. Returns a processx handle to kill (Unix) or NULL, plus cleans
 # up its own window on Windows via the temp script. Returns a handle/list or
 # NULL if it can't be started (the run still works, just without the stream).
-.start_progress_reader <- function(logfile, title = "compress_lineages progress") {
+.start_progress_reader <- function(logfile) {
   tail_code <- paste(
     'a <- commandArgs(TRUE); f <- a[1]',
     'while (!file.exists(f)) Sys.sleep(0.2)',
@@ -24,6 +24,7 @@
     # temp .R file and launch it in a new window; the returned closure closes it.
     script <- tempfile(fileext = ".R")
     writeLines(tail_code, script)
+    title <- "compress_lineages progress"
     ok <- tryCatch({
       system2("cmd", c("/c", "start", shQuote(title),
                        shQuote(rscript), shQuote(script), shQuote(logfile)),
