@@ -2,13 +2,13 @@
 #
 # lineage_specific_genes_par() fits one tradeSeq GAM across all lineages'
 # meta-cells, runs patternTest / diffEndTest, and derives per-lineage
-# fold-changes. Relative to the first version: fitGAM can run in parallel
-# (ncores > 1) by fitting gene-blocks in parallel and be checkpointed to disk
-# (gam_file); AUC /
-# fold-changes are predicted once per lineage (O(L)) rather than per pair
-# (O(L^2)); an optional low-expression prefilter skips genes that cannot pass
-# the downstream filters; and the fitted model is passed through to the
-# per-lineage step (the original dropped it).
+# fold-changes. Relative to the first version: genes are split into blocks and
+# each block is fit AND tested (patternTest/diffEndTest/AUC) in parallel, then
+# the small result tables are row-bound -- fitGAM SCEs are never combined
+# (rbind on them fails SCE validity). Results can be checkpointed to disk
+# (gam_file); AUC / fold-changes are predicted once per lineage (O(L)) rather
+# than per pair (O(L^2)); and an optional low-expression prefilter skips genes
+# that cannot pass the downstream filters.
 
 
 # --- Build the fitGAM inputs (counts / pseudotime / cellWeights / offset) -----
@@ -88,12 +88,15 @@
   if (is.null(logfile)) message(txt) else cat(line, file = logfile, append = TRUE)
 }
 
-# Fit one gene-block serially and return its fitGAM SCE. Top-level (namespace)
-# function so PSOCK workers resolve it by reference instead of serialising the
-# caller's frame (which holds the full counts matrix). `job` carries the block's
-# id and its counts so each worker can log which block it is on.
-.fit_gam_block <- function(job, pseudotime, cellWeights, offset, nknots, family,
-                           n_total = NA, logfile = NULL) {
+# Fit one gene-block AND run the per-gene tests on it, returning only small
+# result tables (never the SCE). Each block SCE is a complete, valid fitGAM
+# object and patternTest/diffEndTest/AUC are per-gene, so a block yields exactly
+# the same rows it would in a whole-genome fit -- and data.frames row-bind
+# cleanly, unlike fitGAM SCEs (which fail SCE validity on rbind). Top-level
+# (namespace) function so PSOCK workers resolve it by reference; `job` carries
+# the block id + counts so each worker can log which block it is on.
+.fit_test_block <- function(job, pseudotime, cellWeights, offset, nknots, family,
+                            lineages, precompute_auc, N, n_total = NA, logfile = NULL) {
   if (requireNamespace("RhpcBLASctl", quietly = TRUE)) {
     RhpcBLASctl::blas_set_num_threads(1)
     RhpcBLASctl::omp_set_num_threads(1)
@@ -101,29 +104,37 @@
   id <- job$id; cb <- job$counts
   t0 <- Sys.time()
   .block_log(logfile, sprintf("block %d/%s START  (%d genes)", id, n_total, nrow(cb)))
-  res <- tradeSeq::fitGAM(counts = cb, pseudotime = pseudotime,
+  sce <- tradeSeq::fitGAM(counts = cb, pseudotime = pseudotime,
                           cellWeights = cellWeights, U = NULL, nknots = nknots,
                           offset = offset, family = family, parallel = FALSE, sce = TRUE)
+  pat <- as.data.frame(tradeSeq::patternTest(sce, global = TRUE, pairwise = TRUE))
+  dif <- as.data.frame(tradeSeq::diffEndTest(sce, global = TRUE, pairwise = TRUE))
+  auc <- NULL
+  if (isTRUE(precompute_auc)) {
+    g   <- intersect(rownames(pat), rownames(dif))
+    auc <- .compute_lineage_auc(sce, lineages = lineages, genes = g, N = N)
+  }
   .block_log(logfile, sprintf("block %d/%s DONE   (%d genes, %s)",
                               id, n_total, nrow(cb), format(round(Sys.time() - t0, 1))))
-  res
+  list(pattern = pat, diffend = dif, auc = auc)
 }
 
-.fit_lineage_gam <- function(cds,
-                            lineages      = names(cds@lineages),
-                            nknots        = 6,
-                            ncores        = 1,
-                            nblocks       = NULL,   # gene-blocks; default = ncores
-                            gam_file      = NULL,   # e.g. "gamlist.rds"
-                            log_file      = NULL,   # per-block progress log
-                            min_metacells = 0,
-                            min_count     = 1,
-                            family        = "nb",
-                            ...) {
+.fit_and_test_blocked <- function(cds,
+                            lineages       = names(cds@lineages),
+                            nknots         = 6,
+                            ncores         = 1,
+                            nblocks        = NULL,   # gene-blocks; default = ncores
+                            gam_file       = NULL,   # caches the RESULT tables (.rds)
+                            log_file       = NULL,   # per-block progress log
+                            min_metacells  = 0,
+                            min_count      = 1,
+                            family         = "nb",
+                            precompute_auc = TRUE,
+                            N              = 1000) {
 
-  # Reuse an existing checkpoint if present.
+  # Reuse an existing checkpoint if present (holds pattern/diffend/auc, not a GAM).
   if (!is.null(gam_file) && file.exists(gam_file)) {
-    message("Loading existing fitGAM object from ", gam_file)
+    message("Loading existing results from ", gam_file)
     return(readRDS(gam_file))
   }
 
@@ -168,7 +179,6 @@
     message(sprintf("Per-block progress log: %s\n  (watch it live with:  %s )", log_file, tail_hint))
   }
 
-
   t0 <- Sys.time()
   if (ncores > 1 && length(jobs) > 1) {
     if (.Platform$OS.type == "windows") {
@@ -180,35 +190,40 @@
           RhpcBLASctl::blas_set_num_threads(1); RhpcBLASctl::omp_set_num_threads(1)
         }
       })
-      sce_list <- pbapply::pblapply(jobs, .fit_gam_block, pseudotime = ps,
+      res_list <- pbapply::pblapply(jobs, .fit_test_block, pseudotime = ps,
                                     cellWeights = cw, offset = off, nknots = nknots,
-                                    family = family, n_total = n_total,
-                                    logfile = log_file, cl = cl)
+                                    family = family, lineages = lineages,
+                                    precompute_auc = precompute_auc, N = N,
+                                    n_total = n_total, logfile = log_file, cl = cl)
     } else {
       # fork: workers share the blocks via copy-on-write, no serialisation cost
-      sce_list <- pbapply::pblapply(jobs, .fit_gam_block, pseudotime = ps,
+      res_list <- pbapply::pblapply(jobs, .fit_test_block, pseudotime = ps,
                                     cellWeights = cw, offset = off, nknots = nknots,
-                                    family = family, n_total = n_total,
-                                    logfile = log_file, cl = ncores)
+                                    family = family, lineages = lineages,
+                                    precompute_auc = precompute_auc, N = N,
+                                    n_total = n_total, logfile = log_file, cl = ncores)
     }
   } else {
-    sce_list <- pbapply::pblapply(jobs, .fit_gam_block, pseudotime = ps,
+    res_list <- pbapply::pblapply(jobs, .fit_test_block, pseudotime = ps,
                                   cellWeights = cw, offset = off, nknots = nknots,
-                                  family = family, n_total = n_total,
-                                  logfile = log_file)
+                                  family = family, lineages = lineages,
+                                  precompute_auc = precompute_auc, N = N,
+                                  n_total = n_total, logfile = log_file)
   }
-  message("fitGAM finished in ", format(Sys.time() - t0))
+  message("fit + tests finished in ", format(Sys.time() - t0))
 
-  # Reassemble the full-gene SCE. Per-cell design (colData/metadata: dm, X,
-  # knots) is identical across blocks because every block saw the same
-  # pseudotime/cellWeights; rbind stacks the per-gene rowData (beta, Sigma).
-  gamlist <- if (length(sce_list) == 1) sce_list[[1]] else do.call(rbind, sce_list)
+  # Row-bind the per-block result tables. Same lineages/design in every block =>
+  # identical columns, so plain rbind stacks the genes. No SCE is ever combined.
+  pattern <- do.call(rbind, lapply(res_list, `[[`, "pattern"))
+  diffend <- do.call(rbind, lapply(res_list, `[[`, "diffend"))
+  auc <- if (isTRUE(precompute_auc)) do.call(rbind, lapply(res_list, `[[`, "auc")) else NULL
 
+  out <- list(pattern = pattern, diffend = diffend, auc = auc)
   if (!is.null(gam_file)) {
-    saveRDS(gamlist, gam_file)
-    message("Saved fitGAM object to ", gam_file)
+    saveRDS(out, gam_file)
+    message("Saved results to ", gam_file)
   }
-  gamlist
+  out
 }
 
 
@@ -392,28 +407,36 @@ lineage_specific_genes_par <- function(cds,
                                        N              = 1000,
                                        family         = "nb") {
 
-  if (is.null(gamlist)) {
-    gamlist <- .fit_lineage_gam(cds, lineages = lineages, nknots = nknots,
-                               ncores = ncores, nblocks = nblocks, gam_file = gam_file,
-                               log_file = log_file, min_metacells = min_metacells,
-                               min_count = min_count, family = family)
-  }
-
-  message("Running patternTest ...")
-  pattern <- tradeSeq::patternTest(models = gamlist, global = TRUE, pairwise = TRUE)
-  message("Running diffEndTest ...")
-  diffend <- tradeSeq::diffEndTest(models = gamlist, global = TRUE, pairwise = TRUE)
-
-  auc <- NULL
-  if (precompute_auc) {
-    message("Precomputing per-lineage AUC ...")
-    common <- intersect(rownames(pattern), rownames(diffend))
-    auc <- .compute_lineage_auc(gamlist, lineages = lineages, genes = common, N = N)
+  if (!is.null(gamlist)) {
+    # A single, already-fitted model was supplied: test it directly.
+    message("Running patternTest ...")
+    pattern <- as.data.frame(tradeSeq::patternTest(gamlist, global = TRUE, pairwise = TRUE))
+    message("Running diffEndTest ...")
+    diffend <- as.data.frame(tradeSeq::diffEndTest(gamlist, global = TRUE, pairwise = TRUE))
+    auc <- NULL
+    if (precompute_auc) {
+      message("Precomputing per-lineage AUC ...")
+      common <- intersect(rownames(pattern), rownames(diffend))
+      auc <- .compute_lineage_auc(gamlist, lineages = lineages, genes = common, N = N)
+    }
+  } else {
+    # Blocked path never combines SCEs, so there is no single model for the
+    # AUC-free fallback; the per-block AUC path is the only option here.
+    if (!precompute_auc) {
+      warning("precompute_auc = FALSE needs a single fitted model; using TRUE for the blocked path.")
+      precompute_auc <- TRUE
+    }
+    res <- .fit_and_test_blocked(cds, lineages = lineages, nknots = nknots,
+                                 ncores = ncores, nblocks = nblocks, gam_file = gam_file,
+                                 log_file = log_file, min_metacells = min_metacells,
+                                 min_count = min_count, family = family,
+                                 precompute_auc = precompute_auc, N = N)
+    pattern <- res$pattern; diffend <- res$diffend; auc <- res$auc
   }
 
   out <- sapply(lineages, .lineage_specific_genes_v2,
                 cds      = cds,
-                model    = gamlist,   # <-- THE FIX
+                model    = gamlist,   # only used by the AUC-free fallback
                 pattern  = pattern,
                 diffend  = diffend,
                 lineages = lineages,
