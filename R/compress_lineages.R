@@ -1,703 +1,383 @@
-compress_3_2 <- function(df, leftover, n){
- df_comp = sw(df[1:(length(df) - (n + leftover))], n, mean, n)
- df_comp = c(df_comp, mean(df[(length(df[1:(length(df) - (n + leftover))])+ 1): length(df)]))
- return(df_comp)
-}
+# Lineage expression compression into meta-cells + smoothed expectation curves.
 
-filter_by_expression_lineage <- function(cds, lineage, mode = "number", N = 100, ratio = 0.01){
-  data = counts(cds)
-  cells = as.character(cds@lineages[[lineage]][['name']])
-  data.sub = data[,cells]
-  if(mode == "ratio"){
-    cutoff = ratio*ncol(data.sub)
-  }
-  else{
-    cutoff = N
-  }
-  expressed_genes = rownames(data.sub)[rowSums(data.sub> 0) > cutoff]
-  expressed_genes
-}
+# Start a background process that tails `logfile` and shows new lines as they
+# are written. On Windows the reader opens in its OWN console window (inherited
+# stdout does not surface in the R console there); on Unix its stdout inherits
+# the R console. Returns a processx handle to kill (Unix) or NULL, plus cleans
+# up its own window on Windows via the temp script. Returns a handle/list or
+# NULL if it can't be started (the run still works, just without the stream).
+.start_progress_reader <- function(logfile) {
+  tail_code <- paste(
+    'a <- commandArgs(TRUE); f <- a[1]',
+    'while (!file.exists(f)) Sys.sleep(0.2)',
+    'con <- file(f, "r")',
+    'repeat {',
+    '  l <- readLines(con, warn = FALSE)',
+    '  if (length(l)) { cat(l, sep = "\\n"); cat("\\n"); flush(stdout()) }',
+    '  Sys.sleep(0.5)',
+    '}', sep = "\n")
+  rscript <- file.path(R.home("bin"),
+                       if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
 
-filter_by_expression <- function(cds, mode = "number", N = 100, ratio = 0.01){
-  data = counts(cds)
-  lineages = names(cds@lineages)
-  all.expressed_genes = c()
-  for(lineage in lineages){
-    cells = as.character(cds@lineages[[lineage]])
-    data.sub = data[,cells]
-    if(mode == "ratio"){
-     cutoff = ratio*ncol(data.sub)
+  if (.Platform$OS.type == "windows") {
+    # Open a separate console window running the tailer. Write the code to a
+    # temp .R file and launch it in a new window; the returned closure closes it.
+    script <- tempfile(fileext = ".R")
+    writeLines(tail_code, script)
+    title <- "compress_lineages progress"
+    ok <- tryCatch({
+      system2("cmd", c("/c", "start", shQuote(title),
+                       shQuote(rscript), shQuote(script), shQuote(logfile)),
+              wait = FALSE)
+      TRUE
+    }, error = function(e) FALSE)
+    if (!ok) {
+      message("Could not open a progress window; running without the live stream.")
+      return(NULL)
     }
-    else{
-     cutoff = N
+    message("Live progress in a separate window titled '", title,
+            "'. (Manual fallback: Get-Content '", logfile, "' -Wait)")
+    # Return a closer that kills that window by title and removes the temp script.
+    list(kill = function() {
+      try(system2("taskkill", c("/FI", shQuote(paste0("WINDOWTITLE eq ", title, "*")), "/T", "/F"),
+                  stdout = FALSE, stderr = FALSE), silent = TRUE)
+      try(unlink(script), silent = TRUE)
+    })
+  } else {
+    if (!requireNamespace("processx", quietly = TRUE)) {
+      message("Install 'processx' for live progress; running without the console stream.")
+      return(NULL)
     }
-    expressed_genes = rownames(data.sub)[rowSums(data.sub> 0) > cutoff]
-    all.expressed_genes = append(all.expressed_genes, expressed_genes)
-  }
-  all.expressed_genes = unique(all.expressed_genes)
-  all.expressed_genes
-}
-
-compress_lineage_v3_2 <- function(cds, lineage, method, N, cores = 1, ID){
-  exp = compress_expression_v3_3(cds, lineage = lineage, method = method, N = N, cores = cores, ID = ID)
-  cds@lineages[[lineage]] <- exp$lineage
-  cds@expression[[lineage]] <- exp$expression
-  cds@expectation[[lineage]] <- exp$expectation
-  cds@pseudotime[[lineage]] <- exp$pseudotime
-  cds
-}
-
-compress_expression_v3_3 <- function(cds, lineage, N, cores = 1, method = "sum", ID = FALSE){
-  print("Updating pseudotime")
-  #Extract the lineage object
-  cds_sub <- get_lineage_object(cds, lineage)
-  #Get pseudotime from the principal graph aux slot
-  updated_pt <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
-  #Store back in cds@lineages as a list
-  #need to add a new slot for updated pseudotime
-  cell_barcodes <- cds@lineages[[lineage]]
-  cds@lineages[[lineage]] <- list(
-    name = cell_barcodes,
-    updated_pt = updated_pt)
-  if(lineage != FALSE){
-    sel.cells = cds@lineages[[lineage]][['name']]
-  }
-  sel.cells = sel.cells[sel.cells %in% colnames(cds)]
-  cds_subset = cds[,sel.cells]
-  #preprare raw count matrix
-  exp = as.data.frame(as.matrix(exprs(cds_subset)))
-  exp_sum <- t(exp)
-  exp_sum = exp_sum[,rownames(cds)]
-  #prepare size factor
-  size_factor <- (pData(cds_subset)[, 'Size_Factor'])
-  size_factor <- size_factor[rownames(exp_sum)]
-  #prepare pseudotime
-  pt <- cds@lineages[[lineage]][['updated_pt']]
-  pt <- as.data.frame(pt)
-  pt <- pt[rownames(exp_sum), , drop = FALSE]
-  colnames(pt) <- c("pseudotime")
-  #prepare umap
-  UMAP <- reducedDims(cds_subset)[["UMAP"]]
-  UMAP <- UMAP[rownames(exp_sum),]
-  colnames(UMAP) <- c("umap_1", "umap_2")
-  if(ID == FALSE){
-    if (N >= nrow(exp_sum)){
-      stop(sprintf(
-        "out of boundary: N (%d) must be smaller than number of rows in exp (%d)",
-        N, nrow(exp_sum)
-      ))
-    }
-    exp_sum = cbind(pt, UMAP, size_factor, exp_sum)
-    exp_sum = exp_sum[order(exp_sum$pseudotime),]
-    exp_sum$meta_cell <- cut(rank(exp_sum$pseudotime), breaks = N, labels = FALSE)
-    gene_cols <- setdiff(
-      colnames(exp_sum),
-      c("pseudotime", "umap_1", "umap_2", "size_factor", "meta_cell")
-    )
-    print(paste0("Compressing lineage ", lineage, " with sum"))
-    meta_sum <- exp_sum %>%
-      group_by(meta_cell) %>%
-      summarise(
-        n_cells = n(),                     # number of cells in this meta-cell
-        pseudotime = mean(pseudotime),     # mean pseudotime
-        umap_1 = mean(umap_1),             # mean UMAP_x
-        umap_2 = mean(umap_2),             # mean UMAP_y
-        size_factor = sum(size_factor),    # sum size factors
-        across(all_of(gene_cols), sum)   # sum gene counts
-      ) %>%
-      ungroup()
-    meta_sum_ordered <- meta_sum[order(meta_sum$pseudotime), ]
-    mat <- meta_sum_ordered[,7:(ncol(meta_sum_ordered))]
-    #fit expression
-    model <- expression ~ splines::ns(pseudotime, df = 7) + offset(log(size_factor))
-    size_factor = meta_sum_ordered$size_factor
-    d <-  (meta_sum_ordered$pseudotime - min(meta_sum_ordered$pseudotime))/(max(meta_sum_ordered$pseudotime)-min(meta_sum_ordered$pseudotime))
-    print("Fitting curves scaled pseudotime")
-    predict_pt <- seq(0, 1, length.out = N)
-    mat_m <- as.matrix(mat)
-    genes <- colnames(mat_m)
-    fit_list_2 <- pbapply::pbsapply(setNames(seq_along(genes), genes),function(i) {
-        fit.m3_3(exp.sel = mat_m[, i], pt = d, size_factor = size_factor, predict_pt = predict_pt, lineage = lineage, model = model, N = N)
-      },
-      cl = cores
-    )
-    fit_list_2 = apply(fit_list_2, 2, as.numeric)
-    if (method != "sum") {
-      exp_mean <- exp
-      exp_mean = (t(exp_mean)) /  (pData(cds_subset)[, 'Size_Factor'])
-      exp_mean = exp_mean[,rownames(cds)]
-      pt <- pt[rownames(exp_mean), , drop = FALSE]
-      UMAP <- UMAP[rownames(exp_mean),]
-      exp_mean = cbind(pt, UMAP, exp_mean)
-      exp_mean = exp_mean[order(exp_mean$pseudotime),]
-      exp_mean$meta_cell <- cut(rank(exp_mean$pseudotime), breaks = N, labels = FALSE)
-      gene_cols <- setdiff(
-        colnames(exp_mean),
-        c("pseudotime", "umap_1", "umap_2", "meta_cell")
-      )
-      print(paste0("Compressing lineage ", lineage, " with mean"))
-      meta_mean <- exp_mean %>%
-        group_by(meta_cell) %>%
-        summarise(
-          n_cells = n(),                     # number of cells in this meta-cell
-          pseudotime = mean(pseudotime),     # mean pseudotime
-          umap_1 = mean(umap_1),             # mean UMAP_x
-          umap_2 = mean(umap_2),             # mean UMAP_y
-          across(all_of(gene_cols), mean)   # mean gene counts
-        ) %>%
-        ungroup()
-      meta_mean_ordered <- meta_mean[order(meta_mean$pseudotime), ]
-      return(list(
-        "lineage" = cds@lineages[[lineage]], "expression" = list("sum" = meta_sum_ordered, "mean" = meta_mean_ordered), "expectation" = fit_list_2, "pseudotime"  = list("real" = meta_sum_ordered$pseudotime, "scaled" = d)))
-    }
-    return(list("lineage"= cds@lineages[[lineage]], "expression" = meta_sum_ordered, "expectation" = fit_list_2, "pseudotime"  = list("real" = meta_sum_ordered$pseudotime, "scaled" = d)))
+    p <- tryCatch(
+      processx::process$new(rscript, c("-e", tail_code, logfile),
+                            stdout = "", stderr = ""),
+      error = function(e) { message("Could not start progress reader: ",
+                                    conditionMessage(e)); NULL })
+    if (is.null(p)) return(NULL)
+    list(kill = function() try(p$kill(), silent = TRUE))
   }
 }
 
-fit.m3_3 <- function(exp.sel, pt, size_factor, predict_pt, lineage, model, N) {
-  
-  if (!requireNamespace("speedglm", quietly = TRUE)) {
-    stop("speedglm not installed")
-  }
-  
+# Quasipoisson spline fit for one gene's meta-cell counts, predicted on a
+# regular pseudotime grid. Returns a length-N numeric vector (NA on failure).
+.fit_m3 <- function(exp.sel, pt, size_factor, predict_pt, lineage, model, N) {
+  if (!requireNamespace("speedglm", quietly = TRUE)) stop("speedglm not installed")
   exp_data.sel <- data.frame(
     pseudotime  = as.numeric(pt),
     size_factor = as.numeric(size_factor),
-    expression  = as.numeric(exp.sel)
-  )
-  
-  # Try to fit the model and predict
-  pred <- tryCatch({
-    
-    fit_model <- speedglm::speedglm(
-      model,
-      data = exp_data.sel,
-      family = quasipoisson(),
-      acc = 1e-3,
-      model = FALSE,
-      y = FALSE
-    )
-    
-    newdata <- data.frame(
-      pseudotime  = as.numeric(predict_pt),
-      size_factor = 1
-    )
-    
+    expression  = as.numeric(exp.sel))
+  tryCatch({
+    fit_model <- speedglm::speedglm(model, data = exp_data.sel,
+                                    family = quasipoisson(), acc = 1e-3,
+                                    model = FALSE, y = FALSE)
+    newdata <- data.frame(pseudotime = as.numeric(predict_pt), size_factor = 1)
     predict(fit_model, newdata = newdata, type = "response")
-    
-  }, error = function(e) {
-    # If error occurs, return NA vector
-    rep(NA_real_, N)
-  })
-  
-  return(pred)
+  }, error = function(e) rep(NA_real_, N))
 }
 
-compress_expression_v3_2 <- function(cds, lineage, N, cores = 1, ID = TRUE){
-  if(lineage != FALSE){
-    sel.cells = cds@lineages[[lineage]]
+# Compress a lineage's cells into N pseudotime-ordered meta-cells and fit a
+# smoothed expectation curve per gene.
+# Append a progress line to `logfile` (read by the background reader), or print
+# directly when there is no logfile (serial runs). Package-level so it can be
+# shipped to PSOCK workers without dragging in the caller's environment.
+.compress_note <- function(logfile, txt) {
+  line <- sprintf("[%s pid %d] %s", format(Sys.time(), "%H:%M:%S"), Sys.getpid(), txt)
+  if (!is.null(logfile)) cat(line, "\n", file = logfile, append = TRUE)
+  else { cat(line, "\n"); utils::flush.console() }
+}
+
+# One lineage's fit, run in a worker. `task` carries the small per-lineage
+# subset (cds_sub) prepared by the parent, so the full cds is never shipped.
+# Package-level so parLapply serialises it against the namespace, not the
+# compress_lineages() frame (which holds cds).
+.compress_worker <- function(prep, N, method, ID, logfile) {
+  t0 <- Sys.time()
+  .compress_note(logfile, sprintf("compressing lineage '%s' ...", prep$lineage))
+  r <- .compress_fit_prep(prep, N = N, method = method, ID = ID,
+                          progress = FALSE, progress_log = logfile)
+  .compress_note(logfile, sprintf("finished lineage '%s' (%s)", prep$lineage,
+                 format(round(difftime(Sys.time(), t0), 1))))
+  r
+}
+
+# Compress a lineage: aggregate to meta-cells (parent), then fit (worker).
+# compress_lineage() (single lineage) runs both here; compress_lineages() calls
+# .compress_prep() in the parent and .compress_fit_prep() in workers, so workers
+# receive only the small aggregated matrices, never the per-cell data.
+.compress_expression <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE){
+  prep <- .compress_prep(cds, lineage, N = N, method = method)
+  .compress_fit_prep(prep, N = N, method = method, ID = ID, progress = progress)
+}
+
+# Parent-side: project + subset, then bin cells into N meta-cells and aggregate
+# gene counts with a SPARSE matrix multiply (counts %*% indicator) -- no dense
+# cells x genes matrix is ever formed. Returns the small N x genes meta matrices.
+.compress_prep <- function(cds, lineage, N, method = "sum"){
+  cds_sub       <- get_lineage_object(cds, lineage)
+  updated_pt    <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
+  cell_barcodes <- .lineage_cells(cds@lineages[[lineage]])
+  sel.cells     <- cell_barcodes[cell_barcodes %in% colnames(cds_sub)]
+  if (length(sel.cells) == 0)
+    stop("Lineage '", lineage, "' has no cells present in the subset.", call. = FALSE)
+  cds_subset <- cds_sub[, sel.cells]
+
+  counts <- exprs(cds_subset)                    # genes x cells (kept sparse)
+  counts <- counts[rownames(cds_sub), ]          # gene order (rows)
+  cells  <- colnames(counts)
+  Ccell  <- length(cells)
+  if (N >= Ccell)
+    stop(sprintf("out of boundary: N (%d) must be smaller than number of cells (%d)", N, Ccell))
+
+  # per-cell vectors aligned to counts columns
+  sf   <- pData(cds_subset)[, "Size_Factor"]; names(sf) <- colnames(cds_subset); sf <- sf[cells]
+  ptv  <- as.numeric(updated_pt[cells])
+  umap <- reducedDims(cds_subset)[["UMAP"]][cells, , drop = FALSE]
+
+  # meta-cell assignment: bin cells by pseudotime rank (order-independent, matches
+  # the original cut(rank(pseudotime), N))
+  meta_cell <- cut(rank(ptv), breaks = N, labels = FALSE)
+  Ind <- Matrix::sparseMatrix(i = seq_len(Ccell), j = meta_cell, x = 1,
+                              dims = c(Ccell, N))          # cells x N indicator
+  n_cells  <- as.integer(Matrix::colSums(Ind))
+  pt_mean  <- as.numeric(tapply(ptv,       meta_cell, mean)[as.character(seq_len(N))])
+  sf_sum   <- as.numeric(tapply(as.numeric(sf), meta_cell, sum)[as.character(seq_len(N))])
+  um1_mean <- as.numeric(tapply(umap[, 1], meta_cell, mean)[as.character(seq_len(N))])
+  um2_mean <- as.numeric(tapply(umap[, 2], meta_cell, mean)[as.character(seq_len(N))])
+
+  # summed gene counts per meta-cell: crossprod(Ind, counts_ct) = t(Ind) %*% (cells x genes)
+  # = N x genes. Using Matrix::crossprod / Matrix::t keeps S4 dispatch explicit so it
+  # can't fall through to base t.default on a sparse object.
+  counts_ct <- Matrix::t(counts)                           # cells x genes (sparse)
+  gene_sum  <- as.matrix(Matrix::crossprod(Ind, counts_ct))  # N x genes
+  ord <- order(pt_mean)
+  meta_sum_ordered <- data.frame(meta_cell = ord, n_cells = n_cells[ord],
+                                 pseudotime = pt_mean[ord], umap_1 = um1_mean[ord],
+                                 umap_2 = um2_mean[ord], size_factor = sf_sum[ord],
+                                 check.names = FALSE)
+  meta_sum_ordered <- cbind(meta_sum_ordered, gene_sum[ord, , drop = FALSE])
+
+  meta_mean_ordered <- NULL
+  if (method != "sum") {
+    # per-cell normalisation then mean per meta-cell = (sum of counts/sf) / n_cells
+    counts_norm_ct <- Matrix::Diagonal(x = 1 / as.numeric(sf)) %*% counts_ct  # scale each cell (row)
+    gene_norm_sum  <- as.matrix(Matrix::crossprod(Ind, counts_norm_ct))       # N x genes
+    gene_mean      <- gene_norm_sum / n_cells               # row m divided by its n_cells
+    meta_mean_ordered <- data.frame(meta_cell = ord, n_cells = n_cells[ord],
+                                    pseudotime = pt_mean[ord], umap_1 = um1_mean[ord],
+                                    umap_2 = um2_mean[ord], check.names = FALSE)
+    meta_mean_ordered <- cbind(meta_mean_ordered, gene_mean[ord, , drop = FALSE])
   }
-  sel.cells = sel.cells[sel.cells %in% colnames(cds)]
-  cds_subset = cds[,sel.cells]
-  family = stats::quasipoisson()
-  model = "expression ~ splines::ns(pseudotime, df=3)"
-  #names(cds_subset) <- rowData(cds_subset)$gene_short_name
-  exp = as.data.frame(as.matrix(exprs(cds_subset)))
-  exp = (t(exp)) /  (pData(cds_subset)[, 'Size_Factor'])
-  exp = exp[,rownames(cds)]
-  pt <- cds_subset@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
-  pt <- pt[rownames(exp)]
-  pt <- as.data.frame(pt)
-  colnames(pt) <- c("pseudotime")
-  pt$cell <- rownames(exp)
-  UMAP <- reducedDims(cds_subset)[["UMAP"]]
-  UMAP <- UMAP[rownames(exp),]
-  if(ID == FALSE){
-    exp = cbind(pt, UMAP, exp)
-    exp = exp[order(exp$pseudotime),]
-    pt = exp[,"pseudotime"]
-    if(N >= nrow(exp)){
-      return(FALSE)
+
+  list(lineage = lineage, meta_sum = meta_sum_ordered, meta_mean = meta_mean_ordered,
+       lineage_entry = list(name = cell_barcodes, updated_pt = updated_pt))
+}
+
+# Worker-side: per-gene quasipoisson fit on the (small) aggregated meta matrix.
+.compress_fit_prep <- function(prep, N, method = "sum", ID = FALSE, progress = TRUE,
+                               progress_log = NULL){
+  lineage          <- prep$lineage
+  lineage_entry    <- prep$lineage_entry
+  meta_sum_ordered <- prep$meta_sum
+  if (ID == FALSE) {
+    mat   <- meta_sum_ordered[, 7:ncol(meta_sum_ordered)]
+    model <- expression ~ splines::ns(pseudotime, df = 7) + offset(log(size_factor))
+    sf_meta <- meta_sum_ordered$size_factor
+    d <- (meta_sum_ordered$pseudotime - min(meta_sum_ordered$pseudotime)) /
+         (max(meta_sum_ordered$pseudotime) - min(meta_sum_ordered$pseudotime))
+    predict_pt <- seq(0, 1, length.out = N)
+    mat_m <- as.matrix(mat)
+    genes <- colnames(mat_m)
+    .fitcol <- function(i) {
+      .fit_m3(exp.sel = mat_m[, i], pt = d, size_factor = sf_meta,
+              predict_pt = predict_pt, lineage = lineage, model = model, N = N)
     }
-    n <- floor(nrow(exp)/(N))
-    leftover <- nrow(exp) - n * N
-    x <- UMAP[,'umap_1']
-    y <- UMAP[,'umap_2']
-    if (leftover <= 1/4*n){
-      pt.comp = compress_3_2(pt, leftover, n)
-      UMAP.comp.x = compress_3_2(x, leftover, n)
-      UMAP.comp.y = compress_3_2(y, leftover, n)
-      max.pt = max(pt.comp)
-      print(paste0("Compressing lineage ", lineage))
-      mat <- as.data.frame(exp[,5:ncol(exp)])
-      exp.comp = pbsapply(mat, compress_3_2, leftover, n)
-      exp_data <- cbind(pt.comp, UMAP.comp.x, UMAP.comp.y, exp.comp)
-      exp_data <- as.data.frame(exp_data)
-      exp_data$pt.comp <- as.numeric(exp_data$pt.comp)
-      exp_data_ordered <- exp_data[order(exp_data$pt.comp), ]
-      mat <- exp_data_ordered[,4:(ncol(exp_data_ordered))]
-      d = as.data.frame(seq(from=0, to=max.pt, by = max.pt/(N-1)))
-      print("Fitting curves")
-      fit = pbsapply(mat, fit.m3_3, pt = d, max.pt = max(d), N = N, cl = cores)
-      fit = apply(fit, 2, as.numeric)
-      return(list("expression" = exp_data_ordered, "expectation" = fit, "pseudotime" = d))
-      exp$expression[exp$expression < 0] <- 0
-      exp$expectation[exp$expectation < 0] <- 0
-      }else{
-      k = N/50
-      n_1 <- floor(leftover/(k))
-      leftover_2 <- leftover - n_1 * k
-      pt.comp <- compress_3_3(pt, leftover, leftover_2, n, n_1, k)
-      UMAP.comp.x <- compress_3_3(x, leftover, leftover_2, n, n_1, k)
-      UMAP.comp.y <- compress_3_3(y, leftover, leftover_2, n, n_1, k)
-      max.pt = max(pt.comp)
-      print(paste0("Compressing lineage ", lineage))
-      mat <- as.data.frame(exp[,5:ncol(exp)])
-      exp.comp = pbsapply(mat, compress_3_3, leftover, leftover_2, n, n_1, k)
-      exp_data <- cbind(pt.comp, UMAP.comp.x, UMAP.comp.y, exp.comp)
-      exp_data <- as.data.frame(exp_data)
-      exp_data$pt.comp <- as.numeric(exp_data$pt.comp)
-      exp_data_ordered <- exp_data[order(exp_data$pt.comp), ]
-      mat <- exp_data_ordered[,4:(ncol(exp_data_ordered))]
-      d = as.data.frame(seq(from=0, to=max.pt, by = max.pt/(N-1)))
-      print("Fitting curves")
-      fit = pbsapply(mat, fit.m3_3, pt = d, max.pt = max(d), N = N, cl = cores)
-      fit = apply(fit, 2, as.numeric)
-      return(list("expression" = exp_data_ordered, "expectation" = fit, "pseudotime" = d))
-      exp$expression[exp$expression < 0] <- 0
-      exp$expectation[exp$expectation < 0] <- 0
-      }
-  }else{
-    ID <- as.data.frame(as.factor((cds_subset@colData[rownames(exp),]['sample'][,1])))
-    colnames(ID) <- c("ID")
-    age <- as.data.frame(cds_subset@colData[rownames(exp),]['age'])
-    sex <- as.data.frame(cds_subset@colData[rownames(exp),]['sex'])
-    region_broad <- as.data.frame(cds_subset@colData[rownames(exp),]['region_broad'])
-    exp = cbind(pt, ID, age, sex, region_broad, UMAP, exp)
-    #use sliding window to compress pseudotime with ID information
-    #add the mean values of pt if length of the ID is smaller than n
-    exp = exp[order(exp$ID, exp$pseudotime),]
-    pt = exp[,"pseudotime"]
-    length <- length(unique(exp$ID))
-    pt.comp <- vector(mode = "list", length = length)
-    ID.comp <- vector(mode = "list", length = length)
-    age.comp <- vector(mode = "list", length = length)
-    sex.comp <- vector(mode = "list", length = length)
-    region_broad.comp <- vector(mode = "list", length = length)
-    UMAP.comp.x <- vector(mode = "list", length = length)
-    UMAP.comp.y <- vector(mode = "list", length = length)
-    len <- c()
-    unique <- unique(exp$ID)
-    position <- match(unique, exp$ID)
-    unique_age <- exp$age[position]
-    unique_sex <- exp$sex[position]
-    unique_region_broad <- exp$region_broad[position]
-    ID <- exp$ID
-    if (length > N)
-    {
-      return(FALSE)
-    }
-    n <- round(N/length)
-    abs <- (N-n*length)
-    if (abs < 0){
-      n <- c(rep(n,length-abs(abs)), rep(n-1,abs(abs)))
-      n <- sample(n, size = length, replace = FALSE)
-    }
-    if (abs > 0){
-      n <- c(rep(n,length-abs(abs)), rep(n+1,abs(abs)))
-      n <- sample(n, size = length, replace = FALSE)
-    }
-    for (i in 1:(length-1)){
-      pos <- match(unique[i], ID)
-      pos_1 <- match(unique[i+1], ID)
-      n_1 <- n[i]
-      if (length(pt[pos:(pos_1-1)]) <= n_1){
-        pt.comp_1 = pt[pos:(pos_1-1)]
-        UMAP.comp.x_1 = UMAP[,'UMAP_1'][pos:(pos_1-1)]
-        UMAP.comp.y_1 = UMAP[,'UMAP_2'][pos:(pos_1-1)]
-        ID.comp_1 <- as.character(rep(unique[i], times=length(pt.comp_1)))
-        age.comp_1 <- as.character(rep(unique_age[i], times=length(pt.comp_1)))
-        sex.comp_1 <- as.character(rep(unique_sex[i], times=length(pt.comp_1)))
-        region_broad.comp_1 <- as.character(rep(unique_region_broad[i], times=length(pt.comp_1)))
-      }
-      else{
-        window <- (pos_1-pos)/(n_1+1)
-        #step <- (pos_1-pos-window)/n_1
-        step <- window
-        len <- c(len, (pos_1-pos))
-        pt.comp_1 = SlidingWindow("mean", pt[pos:(pos_1-1)], window, step)
-        UMAP.comp.x_1 = SlidingWindow("mean", UMAP[,'UMAP_1'][pos:(pos_1-1)], window, step)
-        UMAP.comp.y_1 = SlidingWindow("mean", UMAP[,'UMAP_2'][pos:(pos_1-1)], window, step)
-        ID.comp_1 <- as.character(rep(unique[i], times=length(pt.comp_1)))
-        age.comp_1 <- as.character(rep(unique_age[i], times=length(pt.comp_1)))
-        sex.comp_1 <- as.character(rep(unique_sex[i], times=length(pt.comp_1)))
-        region_broad.comp_1 <- as.character(rep(unique_region_broad[i], times=length(pt.comp_1)))
-      }
-      pt.comp[[i]] <- pt.comp_1
-      UMAP.comp.x[[i]] = UMAP.comp.x_1
-      UMAP.comp.y[[i]] = UMAP.comp.y_1
-      ID.comp[[i]] <- ID.comp_1
-      age.comp[[i]] <- age.comp_1
-      sex.comp[[i]] <- sex.comp_1
-      region_broad.comp[[i]] <- region_broad.comp_1
-      if (i == (length-1)){
-        pos <- match(unique[i+1], ID)
-        pos_1 <- length(ID)
-        n_1 <- n[(length(n))]
-        window <- (pos_1-pos+1)/(n_1+1)
-        #step = ((pos_1-pos+1-window)/n_1)
-        step <- window
-        pt.comp_1 = SlidingWindow("mean", pt[pos:pos_1], window, step)
-        UMAP.comp.x_1 = SlidingWindow("mean", UMAP[,'UMAP_1'][pos:(pos_1)], window, step)
-        UMAP.comp.y_1 = SlidingWindow("mean", UMAP[,'UMAP_2'][pos:(pos_1)], window, step)
-        ID.comp_1 <- as.character(rep(unique[i+1], times=length(pt.comp_1)))
-        age.comp_1 <- as.character(rep(unique_age[i+1], times=length(pt.comp_1)))
-        sex.comp_1 <- as.character(rep(unique_sex[i+1], times=length(pt.comp_1)))
-        region_broad.comp_1 <- as.character(rep(unique_region_broad[i+1], times=length(pt.comp_1)))
-        if (length(pt[pos:pos_1]) <= n_1){
-          pt.comp_1 = pt[pos:pos_1]
-          UMAP.comp.x_1 = UMAP[,'UMAP_1'][pos:(pos_1)]
-          UMAP.comp.y_1 = UMAP[,'UMAP_2'][pos:(pos_1)]
-          ID.comp_1 <- as.character(rep(unique[i+1], times=length(pt.comp_1)))
-          age.comp_1 <- as.character(rep(unique_age[i+1], times=length(pt.comp_1)))
-          sex.comp_1 <- as.character(rep(unique_sex[i+1], times=length(pt.comp_1)))
-          region_broad.comp_1 <- as.character(rep(unique_region_broad[i+1], times=length(pt.comp_1)))
+    fit_list_2 <- if (isTRUE(progress)) {
+      op <- pbapply::pboptions(type = "timer")
+      on.exit(pbapply::pboptions(op), add = TRUE)
+      pbapply::pbsapply(seq_along(genes), .fitcol)
+    } else if (!is.null(progress_log)) {
+      ng <- length(genes); step <- max(1L, ng %/% 50L); last <- -1L
+      out <- vector("list", ng)
+      for (i in seq_len(ng)) {
+        out[[i]] <- .fitcol(i)
+        if (i %% step == 0L || i == ng) {
+          pct <- as.integer(round(100 * i / ng))
+          if (pct != last) { .compress_note(progress_log, sprintf("%s: %d%%", lineage, pct)); last <- pct }
         }
-        pt.comp[[i+1]] <- pt.comp_1
-        UMAP.comp.x[[i+1]] = UMAP.comp.x_1
-        UMAP.comp.y[[i+1]] = UMAP.comp.y_1
-        ID.comp[[i+1]] <- ID.comp_1
-        age.comp[[i+1]] <- age.comp_1
-        sex.comp[[i+1]] <- sex.comp_1
-        region_broad.comp[[i+1]] <- region_broad.comp_1
       }
+      m <- do.call(cbind, out); colnames(m) <- genes; m
+    } else {
+      sapply(seq_along(genes), .fitcol)
     }
-    eta <- N-sum(lengths(pt.comp))
-    if(eta > 0){
-      max <- which.max(len)
-      pos <- match(unique[max], ID)
-      pos_1 <- match(unique[max+1], ID)
-      window_new <- (pos_1-pos)/(n[max]+eta+1)
-      #step_new <- (pos_1-pos-window_new)/(n[max]+eta)
-      step_new <- window_new
-      pt.comp[[max]] <- SlidingWindow("mean", pt[pos:(pos_1-1)], window_new, step_new)
-      UMAP.comp.x[[max]] <- SlidingWindow("mean", UMAP[,'UMAP_1'][pos:(pos_1-1)], window_new, step_new)
-      UMAP.comp.y[[max]] <- SlidingWindow("mean", UMAP[,'UMAP_2'][pos:(pos_1-1)], window_new, step_new)
-      ID.comp[[max]] <- as.character(rep(unique[max], times=length(pt.comp[[max]])))
-      age.comp[[max]] <- as.character(rep(unique_age[max], times=length(pt.comp[[max]])))
-      sex.comp[[max]] <- as.character(rep(unique_sex[max], times=length(pt.comp[[max]])))
-      region_broad.comp[[max]] <- as.character(rep(unique_region_broad[max], times=length(pt.comp[[max]])))
+    colnames(fit_list_2) <- genes
+    fit_list_2 <- apply(fit_list_2, 2, as.numeric)
+    if (method != "sum") {
+      return(list("lineage" = lineage_entry,
+                  "expression" = list("sum" = meta_sum_ordered, "mean" = prep$meta_mean),
+                  "expectation" = fit_list_2,
+                  "pseudotime" = list("real" = meta_sum_ordered$pseudotime, "scaled" = d)))
     }
-    pt.comp <- unlist(pt.comp)
-    UMAP.comp.x <- unlist(UMAP.comp.x)
-    UMAP.comp.y <- unlist(UMAP.comp.y)
-    ID.comp <- unlist(ID.comp)
-    age.comp <- unlist(age.comp)
-    sex.comp <- unlist(sex.comp)
-    region_broad.comp <- unlist(region_broad.comp)
-    max.pt = max(pt.comp)
-    
-    #use sliding window to compress expression with ID information
-    len <- c()
-    exp.comp <- vector(mode = "list", length = length)
-    print(paste0("Compressing lineage ", lineage))
-    mat <- as.data.frame(exp[,9:ncol(exp)])
-    exp.comp <- vector(mode = "list", length = length)
-    exp.comp = pbsapply(mat, compress_3, length = length, unique = unique, ID = ID, n = n, N = N, l = 108, cl = cores)
-    exp_data <- cbind(pt.comp, ID.comp, age.comp, sex.comp, region_broad.comp, UMAP.comp.x, UMAP.comp.y, exp.comp)
-    exp_data <- as.data.frame(exp_data)
-    exp_data$pt.comp <- as.numeric(exp_data$pt.comp)
-    exp_data_ordered <- exp_data[order(exp_data$pt.comp), ]
-    mat <- exp_data_ordered[,8:(ncol(exp_data_ordered))]
-    d = as.data.frame(seq(from=0, to=max.pt, by = max.pt/(N-1)))
-    print("Fitting curves")
-    fit = pbsapply(mat, fit.m3_3, pt = d, max.pt = max(d), N = N, cl = cores)
-    fit = apply(fit, 2, as.numeric)
-    return(list("expression" = exp_data_ordered, "expectation" = fit, "pseudotime" = d))
-    exp$expression[exp$expression < 0] <- 0
-    exp$expectation[exp$expectation < 0] <- 0
+    return(list("lineage" = lineage_entry, "expression" = meta_sum_ordered,
+                "expectation" = fit_list_2,
+                "pseudotime" = list("real" = meta_sum_ordered$pseudotime, "scaled" = d)))
   }
-  return(exp)
 }
 
-compress_3_3 <- function(df, leftover, leftover_2, n, n_1, k){
-  df.comp_1 = sw(df[1:((length(df) - (n*k + leftover)))], n, mean, n)
-  df.comp_2 = sw(df[((length(df) - (n*k + leftover))+1):(length(df) - (n + n_1 + leftover_2))], (n+n_1), mean, (n+n_1))
-  df.comp_3 = mean(df[((length(df) - (n + n_1 + leftover_2))+1):(length(df))])
-  df.comp <- c(df.comp_1, df.comp_2, df.comp_3)
-  return(df.comp)
+#' Compress a lineage into meta-cells with smoothed expectation curves
+#'
+#' Bins a lineage's cells into \code{N} pseudotime-ordered meta-cells, sums (or
+#' also means) their expression, and fits a quasipoisson spline per gene to give
+#' a smoothed expectation, with a progress bar over genes.
+#'
+#' @param cds A \code{metatracker_data_set} with the lineage isolated.
+#' @param lineage Lineage name.
+#' @param N Number of meta-cells (and prediction grid points).
+#' @param method "sum" (default) or any other value to also compute the mean matrix.
+#' @param ID Passed through to the compression routine (default FALSE).
+#' @param progress Show the per-gene progress bar (default TRUE). Set FALSE when
+#'   fitting many lineages in parallel (see \code{compress_lineages}).
+#' @return The \code{cds} with \code{@lineages}, \code{@expression},
+#'   \code{@expectation}, and \code{@pseudotime} populated for \code{lineage}.
+#' @export
+compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE){
+  exp = .compress_expression(cds, lineage = lineage, method = method, N = N,
+                             ID = ID, progress = progress)
+  cds@lineages[[lineage]]    <- exp$lineage
+  cds@expression[[lineage]]  <- exp$expression
+  cds@expectation[[lineage]] <- exp$expectation
+  cds@pseudotime[[lineage]]  <- exp$pseudotime
+  cds
 }
 
-sw <- function(vec, window_size, FUN, step = 1) {
-  n <- length(vec)
-  starts <- seq(1, n - window_size + 1, by = step)
-  sapply(starts, function(i) FUN(vec[i:(i + window_size - 1)]))
-}
+#' Compress every lineage, optionally in parallel
+#'
+#' Runs \code{compress_lineage} across several lineages and merges the results
+#' into one object. Lineages are processed in chunks sized to the worker count,
+#' printing cumulative progress from the parent (\code{"6/11 lineages are being
+#' processed"}) before each chunk. Parallelism depends on \code{cl}: an integer
+#' \code{> 1} forks on Unix/macOS; on Windows (no fork) an integer \code{> 1}
+#' auto-creates a PSOCK cluster of that size; or pass your own
+#' \code{makeCluster()} object. PSOCK workers each receive a copy of \code{cds}
+#' and do not forward console output, so per-lineage detail on Windows comes
+#' from the parent progress prints and the optional \code{log} file.
+#'
+#' @param cds A \code{metatracker_data_set}.
+#' @param lineages Lineage names to compress (default: all in \code{cds@lineages}).
+#' @param N Number of meta-cells per lineage.
+#' @param method "sum" (default) or any other value to also compute the mean matrix.
+#' @param ID Passed through to \code{compress_lineage} (default FALSE).
+#' @param cl Integer worker count (fork on Unix, serial on Windows) or a
+#'   \code{parallel::makeCluster()} object. Default 1 (serial). Same convention
+#'   as \code{isolate_lineage}.
+#' @param log Optional path to a progress log file. Each worker appends a line
+#'   when it starts and finishes a lineage (with PID and elapsed time). Useful
+#'   Live monitoring uses a temporary progress file that each worker appends to;
+#'   a background reader echoes it to the console and the file is deleted when
+#'   the run finishes.
+#' @param monitor Show live per-lineage progress from a background reader
+#'   (default TRUE). Requires the \code{processx} package; if unavailable, the
+#'   run still works but without the live console stream.
+#' @return The \code{cds} with all requested lineages compressed.
+#' @export
+compress_lineages <- function(cds, lineages = names(cds@lineages), N,
+                              method = "sum", ID = FALSE, cl = 1, monitor = TRUE){
+  if (length(lineages) == 0) stop("No lineages to compress.", call. = FALSE)
+  cat(sprintf("Compressing %d lineage(s): %s\n",
+              length(lineages), paste(lineages, collapse = ", ")))
+  utils::flush.console()
 
-compress_lineage_v3 <- function(cds, lineage, N, cores = 1){
-  cds_name = deparse(substitute(cds))
-  input = paste0("compress_expression_v3(",cds_name,", lineage = '", lineage, "', N = ", N, ", cores = ", cores, ")")
-  exp = eval(parse(text=input))
-  input = paste0(cds_name, "@expression$", lineage, " <- exp$expression")
-  eval(parse(text=input))
-  input = paste0(cds_name, "@expectation$", lineage, " <- exp$expectation")
-  eval(parse(text=input))
-  input = paste0(cds_name, "@pseudotime$", lineage, " <- exp$pseudotime")
-  eval(parse(text=input))
-  eval(parse(text=paste0("return(",cds_name, ")")))
-}
+  parallel_run <- inherits(cl, "cluster") || (is.numeric(cl) && cl > 1)
 
-compress_expression_v3 <- function(cds, lineage, N, cores = 1){
-  cds_name = deparse(substitute(cds))
-  if(lineage != FALSE){
-    input = paste0("sel.cells = ",cds_name,"@lineages$", lineage)
-    eval(parse(text=input))
+  # Progress transport: workers can't print to the console (esp. PSOCK), but they
+  # can append to a file that a background reader echoes to the console.
+  logfile <- NULL
+  reader  <- NULL
+  if (parallel_run && isTRUE(monitor)) {
+    logfile <- tempfile("compress_progress_", fileext = ".log")
+    file.create(logfile)
+    reader  <- .start_progress_reader(logfile)
   }
-  sel.cells = sel.cells[sel.cells %in% colnames(cds)]
-  cds_subset = cds[,sel.cells]
-  family = stats::quasipoisson()
-  model = "expression ~ splines::ns(pseudotime, df=3)"
-  #names(cds_subset) <- rowData(cds_subset)$gene_short_name
-  exp = as.data.frame(as.matrix(exprs(cds_subset)))
-  exp = (t(exp)) /  (pData(cds_subset)[, 'Size_Factor'])
-  pt <- cds_subset@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
-  pt <- pt[rownames(exp)]
-  pt <- as.data.frame(pt)
-  colnames(pt) <- c("pseudotime")
-  pt$cell <- rownames(exp)
-  ID <- as.data.frame(as.factor((cds_subset@colData[rownames(exp),]['sample'][,1])))
-  colnames(ID) <- c("ID")
-  age <- as.data.frame(cds_subset@colData[rownames(exp),]['age'])
-  sex <- as.data.frame(cds_subset@colData[rownames(exp),]['sex'])
-  region_broad <- as.data.frame(cds_subset@colData[rownames(exp),]['region_broad'])
-  UMAP <- reducedDims(cds_subset)[["UMAP"]]
-  UMAP <- UMAP[rownames(exp),]
-  exp = cbind(pt, ID, age, sex, region_broad, UMAP, exp)
-  #use sliding window to compress pseudotime with ID information
-  #add the mean values of pt if length of the ID is smaller than n
-  exp = exp[order(exp$ID, exp$pseudotime),]
-  pt = exp[,"pseudotime"]
-  length <- length(unique(exp$ID))
-  pt.comp <- vector(mode = "list", length = length)
-  ID.comp <- vector(mode = "list", length = length)
-  age.comp <- vector(mode = "list", length = length)
-  sex.comp <- vector(mode = "list", length = length)
-  region_broad.comp <- vector(mode = "list", length = length)
-  UMAP.comp.x <- vector(mode = "list", length = length)
-  UMAP.comp.y <- vector(mode = "list", length = length)
-  len <- c()
-  unique <- unique(exp$ID)
-  position <- match(unique, exp$ID)
-  unique_age <- exp$age[position]
-  unique_sex <- exp$sex[position]
-  unique_region_broad <- exp$region_broad[position]
-  ID <- exp$ID
-  if (length > N)
-  {
-    return(FALSE)
-  }
-  n <- round(N/length)
-  abs <- (N-n*length)
-  if (abs < 0){
-    n <- c(rep(n,length-abs(abs)), rep(n-1,abs(abs)))
-    n <- sample(n, size = length, replace = FALSE)
-  }
-  if (abs > 0){
-    n <- c(rep(n,length-abs(abs)), rep(n+1,abs(abs)))
-    n <- sample(n, size = length, replace = FALSE)
-  }
-  for (i in 1:(length-1)){
-    pos <- match(unique[i], ID)
-    pos_1 <- match(unique[i+1], ID)
-    n_1 <- n[i]
-    if (length(pt[pos:(pos_1-1)]) <= n_1){
-      pt.comp_1 = pt[pos:(pos_1-1)]
-      UMAP.comp.x_1 = UMAP[,'UMAP_1'][pos:(pos_1-1)]
-      UMAP.comp.y_1 = UMAP[,'UMAP_2'][pos:(pos_1-1)]
-      ID.comp_1 <- as.character(rep(unique[i], times=length(pt.comp_1)))
-      age.comp_1 <- as.character(rep(unique_age[i], times=length(pt.comp_1)))
-      sex.comp_1 <- as.character(rep(unique_sex[i], times=length(pt.comp_1)))
-      region_broad.comp_1 <- as.character(rep(unique_region_broad[i], times=length(pt.comp_1)))
-    }
-    else{
-      window <- (pos_1-pos)/(n_1+1)
-      #step <- (pos_1-pos-window)/n_1
-      step <- window
-      len <- c(len, (pos_1-pos))
-      pt.comp_1 = SlidingWindow("mean", pt[pos:(pos_1-1)], window, step)
-      UMAP.comp.x_1 = SlidingWindow("mean", UMAP[,'UMAP_1'][pos:(pos_1-1)], window, step)
-      UMAP.comp.y_1 = SlidingWindow("mean", UMAP[,'UMAP_2'][pos:(pos_1-1)], window, step)
-      ID.comp_1 <- as.character(rep(unique[i], times=length(pt.comp_1)))
-      age.comp_1 <- as.character(rep(unique_age[i], times=length(pt.comp_1)))
-      sex.comp_1 <- as.character(rep(unique_sex[i], times=length(pt.comp_1)))
-      region_broad.comp_1 <- as.character(rep(unique_region_broad[i], times=length(pt.comp_1)))
-    }
-    pt.comp[[i]] <- pt.comp_1
-    UMAP.comp.x[[i]] = UMAP.comp.x_1
-    UMAP.comp.y[[i]] = UMAP.comp.y_1
-    ID.comp[[i]] <- ID.comp_1
-    age.comp[[i]] <- age.comp_1
-    sex.comp[[i]] <- sex.comp_1
-    region_broad.comp[[i]] <- region_broad.comp_1
-    if (i == (length-1)){
-      pos <- match(unique[i+1], ID)
-      pos_1 <- length(ID)
-      n_1 <- n[(length(n))]
-      window <- (pos_1-pos+1)/(n_1+1)
-      #step = ((pos_1-pos+1-window)/n_1)
-      step <- window
-      pt.comp_1 = SlidingWindow("mean", pt[pos:pos_1], window, step)
-      UMAP.comp.x_1 = SlidingWindow("mean", UMAP[,'UMAP_1'][pos:(pos_1)], window, step)
-      UMAP.comp.y_1 = SlidingWindow("mean", UMAP[,'UMAP_2'][pos:(pos_1)], window, step)
-      ID.comp_1 <- as.character(rep(unique[i+1], times=length(pt.comp_1)))
-      age.comp_1 <- as.character(rep(unique_age[i+1], times=length(pt.comp_1)))
-      sex.comp_1 <- as.character(rep(unique_sex[i+1], times=length(pt.comp_1)))
-      region_broad.comp_1 <- as.character(rep(unique_region_broad[i+1], times=length(pt.comp_1)))
-      if (length(pt[pos:pos_1]) <= n_1){
-        pt.comp_1 = pt[pos:pos_1]
-        UMAP.comp.x_1 = UMAP[,'UMAP_1'][pos:(pos_1)]
-        UMAP.comp.y_1 = UMAP[,'UMAP_2'][pos:(pos_1)]
-        ID.comp_1 <- as.character(rep(unique[i+1], times=length(pt.comp_1)))
-        age.comp_1 <- as.character(rep(unique_age[i+1], times=length(pt.comp_1)))
-        sex.comp_1 <- as.character(rep(unique_sex[i+1], times=length(pt.comp_1)))
-        region_broad.comp_1 <- as.character(rep(unique_region_broad[i+1], times=length(pt.comp_1)))
-      }
-      pt.comp[[i+1]] <- pt.comp_1
-      UMAP.comp.x[[i+1]] = UMAP.comp.x_1
-      UMAP.comp.y[[i+1]] = UMAP.comp.y_1
-      ID.comp[[i+1]] <- ID.comp_1
-      age.comp[[i+1]] <- age.comp_1
-      sex.comp[[i+1]] <- sex.comp_1
-      region_broad.comp[[i+1]] <- region_broad.comp_1
-    }
-  }
-  eta <- N-sum(lengths(pt.comp))
-  if(eta > 0){
-    max <- which.max(len)
-    pos <- match(unique[max], ID)
-    pos_1 <- match(unique[max+1], ID)
-    window_new <- (pos_1-pos)/(n[max]+eta+1)
-    #step_new <- (pos_1-pos-window_new)/(n[max]+eta)
-    step_new <- window_new
-    pt.comp[[max]] <- SlidingWindow("mean", pt[pos:(pos_1-1)], window_new, step_new)
-    UMAP.comp.x[[max]] <- SlidingWindow("mean", UMAP[,'UMAP_1'][pos:(pos_1-1)], window_new, step_new)
-    UMAP.comp.y[[max]] <- SlidingWindow("mean", UMAP[,'UMAP_2'][pos:(pos_1-1)], window_new, step_new)
-    ID.comp[[max]] <- as.character(rep(unique[max], times=length(pt.comp[[max]])))
-    age.comp[[max]] <- as.character(rep(unique_age[max], times=length(pt.comp[[max]])))
-    sex.comp[[max]] <- as.character(rep(unique_sex[max], times=length(pt.comp[[max]])))
-    region_broad.comp[[max]] <- as.character(rep(unique_region_broad[max], times=length(pt.comp[[max]])))
-  }
-  pt.comp <- unlist(pt.comp)
-  UMAP.comp.x <- unlist(UMAP.comp.x)
-  UMAP.comp.y <- unlist(UMAP.comp.y)
-  ID.comp <- unlist(ID.comp)
-  age.comp <- unlist(age.comp)
-  sex.comp <- unlist(sex.comp)
-  region_broad.comp <- unlist(region_broad.comp)
-  max.pt = max(pt.comp)
-  
-  #use sliding window to compress expression with ID information
-  len <- c()
-  exp.comp <- vector(mode = "list", length = length)
-  print(paste0("Compressing lineage ", lineage))
-  mat <- as.data.frame(exp[,9:ncol(exp)])
-  exp.comp <- vector(mode = "list", length = length)
-  exp.comp = pbsapply(mat, compress_3, length = length, unique = unique, ID = ID, n = n, N = N, l = 108, cl = cores)
-  exp_data <- cbind(pt.comp, ID.comp, age.comp, sex.comp, region_broad.comp, UMAP.comp.x, UMAP.comp.y, exp.comp)
-  exp_data <- as.data.frame(exp_data)
-  exp_data$pt.comp <- as.numeric(exp_data$pt.comp)
-  exp_data_ordered <- exp_data[order(exp_data$pt.comp), ]
-  mat <- exp_data_ordered[,8:(ncol(exp_data_ordered))]
-  d = as.data.frame(seq(from=0, to=max.pt, by = max.pt/(N-1)))
-  print("Fitting curves")
-  fit = pbsapply(mat, fit.m3_3, pt = d, max.pt = max(d), N = N, cl = cores)
-  fit = apply(fit, 2, as.numeric)
-  return(list("expression" = exp_data_ordered, "expectation" = fit, "pseudotime" = d))
-  exp$expression[exp$expression < 0] <- 0
-  exp$expectation[exp$expectation < 0] <- 0
-  exp
-}
+  on.exit({
+    if (!is.null(reader)) { Sys.sleep(1); try(reader$kill(), silent = TRUE) }
+    if (!is.null(logfile)) unlink(logfile)   # remove the log at the end
+  }, add = TRUE)
 
-compress_3 <- function(df, length, unique, ID, n, N, l){
-  len <- c()
-  exp.comp <- vector(mode = "list", length = l)
-  for (i in 1:(length-1)){
-    pos <- match(unique[i], ID)
-    pos_1 <- match(unique[i+1], ID)
-    n_1 <- n[i]
-    window <- (pos_1-pos)/n_1
-    step <- (pos_1-pos-window)/n_1
-    len <- c(len, (pos_1-pos))
-    if (length(df[pos:(pos_1-1)]) <= n_1){
-      exp.comp_1 = df[pos:(pos_1-1)]
-    }
-    else{
-      exp.comp_1 = SlidingWindow("mean", df[pos:(pos_1-1)], window, step)
-    }
-    exp.comp[[i]] <- exp.comp_1
-    if (i == (length-1)){
-      pos <- match(unique[i+1], ID)
-      pos_1 <- length(ID)
-      n_1 <- n[(length(n))]
-      window <- (pos_1-pos+1)/n_1
-      step = ((pos_1-pos+1-window)/n_1)
-      len <- c(len, (pos_1-pos))
-      if (length(df[pos:pos_1]) <= n_1){
-        exp.comp_1 = df[pos:pos_1]
-      }
-      else{
-        exp.comp_1 = SlidingWindow("mean", df[pos:pos_1], window, step)
-      }
-      exp.comp[[i+1]] <- exp.comp_1
-    }
-  }
-  eta <- N-sum(lengths(exp.comp))
-  if(eta > 0){
-    max <- which.max(len)
-    pos <- match(unique[max], ID)
-    pos_1 <- match(unique[max+1], ID)
-    window_new <- (pos_1-pos)/(n[max]+eta)
-    step_new <- (pos_1-pos-window_new)/(n[max]+eta)
-    exp.comp[[max]] <- SlidingWindow("mean", df[pos:(pos_1-1)], window_new, step_new)
-  }
-  exp.comp <- unlist(exp.comp)
-}
+  # Quiet pbapply bars during the run; progress comes from the reader + prints.
+  op <- pbapply::pboptions(type = "none")
+  on.exit(pbapply::pboptions(op), add = TRUE)
 
-get_lineage_object_2 <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = TRUE){
-  start = find_start_node(cds)
-  if(lineage != FALSE){
-    sub.graph = cds@graphs[[lineage]]
-    sel.cells = cds@lineages[[lineage]][["name"]]
+  # Guard: parLapply serialises the worker with its environment. If this package
+  # is source()'d into .GlobalEnv rather than installed, .compress_worker's
+  # environment IS .GlobalEnv -- which holds `cds` -- and the full object would
+  # be shipped to every worker (OOM). Detect and refuse rather than OOM silently.
+  if ((inherits(cl, "cluster") || (is.numeric(cl) && cl > 1 &&
+        .Platform$OS.type == "windows")) &&
+      environmentName(environment(.compress_worker)) == "R_GlobalEnv") {
+    stop("compress_lineages is running from .GlobalEnv (source()'d), which would ",
+         "ship the payloads/cds to each PSOCK worker from the global env. Install ",
+         "and library(metatracker) instead of source()-ing the files, then retry.",
+         call. = FALSE)
   }
-  else{
-    sel.cells = colnames(cds)
+
+  # Resolve a worker backend.
+  #  - a cluster passed as `cl`         -> use it as-is
+  #  - integer cl > 1 on Unix/macOS     -> fork (mclapply)
+  #  - integer cl > 1 on Windows        -> auto-create a PSOCK cluster (no fork on Windows)
+  #  - otherwise                        -> serial
+  clobj <- if (inherits(cl, "cluster")) cl else NULL
+  if (is.null(clobj) && is.numeric(cl) && cl > 1 && .Platform$OS.type == "windows") {
+    clobj <- parallel::makeCluster(as.integer(cl))
+    parallel::clusterEvalQ(clobj, suppressMessages(library(metatracker)))
+    on.exit(parallel::stopCluster(clobj), add = TRUE)   # only stop clusters we created
+    message("Windows: created a ", as.integer(cl), "-worker PSOCK cluster ",
+            "(each worker receives one lineage's exp_sum payload, not the full cds).")
   }
-  sel.cells = sel.cells[sel.cells %in% colnames(cds)]
-  nodes_UMAP = cds@principal_graph_aux[["UMAP"]]$dp_mst
-  if(N != FALSE){
-    if(N < length(sel.cells)){
-      sel.cells = sample(sel.cells, N)
+
+  n <- length(lineages)
+  n_workers <- if (!is.null(clobj)) length(clobj)
+               else if (is.numeric(cl)) max(1L, as.integer(cl)) else 1L
+  # Chunk lineages to the worker count. Payloads are built per chunk and freed
+  # before the next, so peak memory is ~2 x (n_workers x one exp_sum) + cds
+  # rather than all payloads at once.
+  chunks <- split(lineages, ceiling(seq_along(lineages) / n_workers))
+
+  run_chunk <- function(preps) {
+    if (!is.null(clobj)) {
+      parallel::parLapply(clobj, preps, .compress_worker,
+                          N = N, method = method, ID = ID, logfile = logfile)
+    } else if (is.numeric(cl) && cl > 1 && .Platform$OS.type != "windows") {
+      parallel::mclapply(preps, .compress_worker,
+                         N = N, method = method, ID = ID, logfile = logfile,
+                         mc.cores = cl, mc.preschedule = FALSE)
+    } else {
+      lapply(preps, .compress_worker,
+             N = N, method = method, ID = ID, logfile = logfile)
     }
   }
-  #subset the moncole object
-  cds_subset = cds[,sel.cells]
-  #set the graph, node and cell UMAP coordinates
-  if(lineage == FALSE){
-    sub.graph = principal_graph(cds_subset)[["UMAP"]]
+
+  res  <- list()
+  done <- 0L
+  for (ch in chunks) {
+    done <- done + length(ch)
+    cat(sprintf("%d/%d lineages are being processed\n", done, n)); utils::flush.console()
+    # Phase 1 (this chunk): build the small per-lineage payloads in the parent.
+    preps <- lapply(ch, function(lin) .compress_prep(cds, lin, N = N, method = method))
+    names(preps) <- ch
+    # Phase 2 (this chunk): fit in parallel over the payloads.
+    res <- c(res, run_chunk(preps))
+    rm(preps); gc(verbose = FALSE)          # free this chunk before building the next
   }
-  cds_subset@principal_graph[["UMAP"]] <- sub.graph
-  cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[,names(V(sub.graph))]
-  cds_subset@clusters[["UMAP"]]$partitions <- cds_subset@clusters[["UMAP"]]$partitions[colnames(cds_subset)]
-  #recalculate closest vertex for the selected cells
-  cells_UMAP = as.data.frame(reducedDims(cds_subset)[["UMAP"]])
-  colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
-  closest_vertex = apply(cells_UMAP[,c("UMAP_1", "UMAP_2")], 1, calculate_closest_vertex, nodes = as.matrix(nodes_UMAP[,names(V(sub.graph))]))
-  closest_vertex = as.data.frame(closest_vertex)
-  cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
-  if(recalculate_pt == TRUE){
-    source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
-    cds_subset <- project2MST(cds_subset, project_point_to_line_segment, F, T, "UMAP", nodes_UMAP[,names(V(sub.graph))])
-    cds_subset <- order_cells(cds_subset, root_pr_nodes = start)
+  names(res) <- lineages
+
+  for (lin in lineages) {
+    r <- res[[lin]]
+    if (inherits(r, "try-error"))
+      stop("compress_lineage failed for lineage '", lin, "': ",
+           conditionMessage(attr(r, "condition")), call. = FALSE)
+    cds@lineages[[lin]]    <- r$lineage
+    cds@expression[[lin]]  <- r$expression
+    cds@expectation[[lin]] <- r$expectation
+    cds@pseudotime[[lin]]  <- r$pseudotime
   }
-  return(cds_subset)
+  cds
 }
