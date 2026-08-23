@@ -1,4 +1,4 @@
-# meta-tracker basic tutorial
+# meta-tracker tutorial
 This is the analysis guide starting from a monocle 3 object to identify lineage-specific genes and compare conditions within the same lineage.
 ## Part one: select trajectory branches corresponding to specific lineages
 ### 1.1. Install metatracker. Metatracker requires monocle3, which can be installed as described here: https://cole-trapnell-lab.github.io/monocle3/docs/installation/
