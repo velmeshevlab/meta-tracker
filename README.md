@@ -109,7 +109,7 @@ cds_new = compress_lineages(cds, method = "all", N = 1000, ID = FALSE, cl = 5)
   cds_F <- lineage_specific_genes_par(cds_F, ncores = 10, nblocks = 50)
   cds_F <- format_lineage_genes(cds_F)
 ```
-### 2.4. For most lineages, we don't want to only find genes specific to terminal cell types but also shared between related lineages. First, we label branched (plot saved on disk) and then find branch-specific genes.
+### 2.4. For most lineages, we don't want to only find genes specific to terminal cell types but also shared between related lineages. First, we label branched (plots saved on disk as branches.pdf) and then find branch-specific genes.
 ```
   label_branches(cds_F)
   write_branch_genes(cds_F)
