@@ -103,24 +103,16 @@ cds_new = compress_lineages(cds, method = "all", N = 1000, ID = FALSE, cl = 5)
 ```
   cds_F <- within_lineage_DE_par(cds = cds_F, cores = 8)
 ```
-### 2.3. Next, we can identify lineage-specific genes. We do it by comparing each lineage to all other lineages and calculating meta p value and average fold change.
+### 2.3. Next, we can identify lineage-specific genes. We do it by comparing each lineage to all other lineages and calculating meta p value and average fold change. Takes ~2.5 hours with 8 cores.
 ###      We only keep the genes that have significant p values in all lineage comparisons and are also dynamically expressed.
 ```
-  cds_F <- lineage_specific_genes_par(cds = cds_F)
+  cds_F <- lineage_specific_genes_par(cds_F, ncores = 10, nblocks = 50)
   cds_F <- format_lineage_genes(cds_F)
 ```
-### 2.4. For most lineages, we don't want to only find genes specific to terminal cell types but also shared between related lineages (in this case, protoplasmic and fibrous astrocytes).
+### 2.4. For most lineages, we don't want to only find genes specific to terminal cell types but also shared between related lineages. First, we label branched (plot saved on disk) and then find branch-specific genes.
 ```
-  write_branch_genes <- function(index, cds, branch_number, branches)
-  {
-  branch_point = branches[[index]]
-  branch_genes = format_branch_specific_genes(branch_point, cds, branch_number = branch_number)
-  branch_point_name = names(branch_point)[branch_number]
-  write.table(branch_genes, file = paste0(names(branches)[index], "_B", branch_number, "_branch_genes.tsv"), sep = "\t", quote = F)
-  }
-  branches = find_branches(cds_F)
-  lapply(1:length(branches), write_branch_genes, cds = cds_F, branch_number = 1, branches = branches)
-  lapply(1:length(branches), write_branch_genes, cds = cds_F, branch_number = 2, branches = branches)
+  label_branches(cds_F)
+  write_branch_genes(cds_F)
 ```
 ### 2.5. Plot selected lineage-specific genes.
 ```
