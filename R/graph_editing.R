@@ -695,7 +695,7 @@ return(cds)
     nodes_UMAP.sub = as.data.frame(t(nodes_UMAP[,names]))
   }
   #select cells along the graph
-  if(r == NULL){
+  if (is.null(r)){
     mean.dist = .path_distance(nodes_UMAP.sub)
     r = mean.dist*N
   }
