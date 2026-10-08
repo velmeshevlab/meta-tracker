@@ -671,14 +671,21 @@ graph_selection_interactive <- function(cds,
   return(cds)
 }
 
-#' @export
-isolate_lineage <- function(cds, lineage, sel_clusters = NULL, start_regions = F, starting_clusters = F, subset = FALSE, N = 5, cl = 1){
-sel.cells = .isolate_lineage_sub(cds, lineage, sel_clusters = sel_clusters, start_regions = start_regions, starting_clusters = starting_clusters, subset = subset, N = N, cl = cl)
-cds@lineages[[lineage]] <- sel.cells
-return(cds)
+isolate_lineage <- function(cds, lineage, sel_clusters = NULL, start_regions = NULL, starting_clusters = NULL,
+                            excluded_ages = NULL, excluded_ages_cluster = NULL,
+                            subset = FALSE, N = 5, cl = 1, r = 1) {
+  stopifnot(is.numeric(r), length(r) == 1, r > 0)
+  sel.cells <- isolate_lineage_sub(cds, lineage, sel_clusters = sel_clusters,
+                                   start_regions = start_regions, starting_clusters = starting_clusters,
+                                   excluded_ages = excluded_ages, excluded_ages_cluster = excluded_ages_cluster,
+                                   subset = subset, N = N, cl = cl, r = r)
+  cds@lineages[[lineage]] <- sel.cells
+  cds
 }
 
-.isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions = NULL, starting_clusters = NULL, subset = FALSE, N = 5, cl = 1){
+
+isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions = NULL, starting_clusters = NULL,
+                                excluded_ages = NULL, excluded_ages_cluster = NULL, subset = FALSE, N = 5, cl = 1, r){
   sub.graph = cds@graphs[[lineage]]
   nodes_UMAP = cds@principal_graph_aux[["UMAP"]]$dp_mst
   if(subset == F){
@@ -695,12 +702,11 @@ return(cds)
     nodes_UMAP.sub = as.data.frame(t(nodes_UMAP[,names]))
   }
   #select cells along the graph
-  mean.dist = .path_distance(nodes_UMAP.sub)
-  r = mean.dist*N
+  #mean.dist = path.distance(nodes_UMAP.sub)
   cells_UMAP = as.data.frame(reducedDims(cds)["UMAP"])
   colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
   cells_UMAP = cells_UMAP[,c("UMAP_1", "UMAP_2")]
-  sel.cells = .cell_selector(nodes_UMAP.sub, cells_UMAP, r, cl = cl)
+  sel.cells = cell.selector(nodes_UMAP.sub, cells_UMAP, r, cl = cl)
   #only keep cells in the progenitor and lineage-specific clusters
   sel.cells1 = c()
   sel.cells2 = sel.cells
@@ -713,15 +719,40 @@ return(cds)
   if(length(sel_clusters) > 0){
     sel.cells2 = names(cds@"clusters"[["UMAP"]]$clusters[cds@"clusters"[["UMAP"]]$clusters %in% sel_clusters])
   }
+  
+  # Optional: exclude cells in all selected clusters with specific age labels, if no cluster specified, then exclude the cells
+  # in all clusters with the specific age labels
+  if (length(excluded_ages) > 0) {
+    cd <- colData(cds)
+    
+    # decide which age column the labels belong to (same check as before)
+    if (all(excluded_ages %in% cd$age_reorder)) {
+      age_col <- "age_reorder"
+    } else if (all(excluded_ages %in% cd$age_details)) {
+      age_col <- "age_details"
+    } else {
+      stop("excluded_ages not all found in a single column. Missing from age_reorder: ",
+           paste(setdiff(excluded_ages, cd$age_reorder), collapse = ", "),
+           " | missing from age_details: ",
+           paste(setdiff(excluded_ages, cd$age_details), collapse = ", "))
+    }
+    
+    cluster_labels <- cds@"clusters"[["UMAP"]]$clusters
+    
+    in_cluster <- if (length(excluded_ages_cluster) > 0) {
+      as.character(cluster_labels) %in% as.character(excluded_ages_cluster)
+    } else {
+      rep(TRUE, length(cluster_labels))     # no cluster given: apply to all cells
+    }
+    
+    cells_to_exclude <- names(cluster_labels)[
+      which(in_cluster & cd[names(cluster_labels), age_col] %in% excluded_ages)
+    ]
+    sel.cells2 <- sel.cells2[!(sel.cells2 %in% cells_to_exclude)]
+  }
   cells = unique(c(sel.cells1, sel.cells2))
   sel.cells = sel.cells[sel.cells %in% cells]
   return(sel.cells)
-}
-
-.cell_selector <- function(path, cells, r, cl){
-sel.cells = c()
-sel.cells = pbapply(path, 1, .selector_sub, cells = cells, r = r, cl = cl, simplify = T)
-return(unique(unlist(sel.cells)))
 }
 
 .selector_sub <- function(node, cells, r){
@@ -773,48 +804,61 @@ return(mean(dists))
 #' @param recalculate_pt Reproject and re-order pseudotime on the subset (default TRUE).
 #' @return The subset \code{cds}.
 #' @export
-get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = TRUE) {
-  start = .find_start_node(cds)
+
+get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = TRUE){
+  start = find_start_node(cds)
   if (lineage != FALSE) {
-    sub.graph = cds@graphs[[lineage]]
-    sel.cells = .lineage_cells(cds@lineages[[lineage]])   # handles vector OR list($name)
-  } else {
+    sub.graph <- cds@graphs[[lineage]]
+    if (is.list(cds@lineages[[lineage]])) {
+      sel.cells <- cds@lineages[[lineage]]$name
+    } else {
+      sel.cells <- cds@lineages[[lineage]]
+    }
+    if (!is.character(sel.cells)) {
+      print("sel cells are not string")
+    }
+  }
+  else{
     sel.cells = colnames(cds)
   }
   sel.cells = sel.cells[sel.cells %in% colnames(cds)]
-  if (length(sel.cells) == 0)
-    stop("Lineage '", lineage, "' has no cells present in cds.", call. = FALSE)
   nodes_UMAP = cds@principal_graph_aux[["UMAP"]]$dp_mst
-  if (N != FALSE) {
-    if (N < length(sel.cells)) {
+  if(N != FALSE){
+    if(N < length(sel.cells)){
       sel.cells = sample(sel.cells, N)
     }
   }
-  # subset the monocle object
-  cds_subset = cds[, sel.cells]
-  # set the graph, node and cell UMAP coordinates
-  if (lineage == FALSE) {
+  #subset the moncole object
+  cds_subset = cds[,sel.cells]
+  #set the graph, node and cell UMAP coordinates
+  if(lineage == FALSE){
     sub.graph = principal_graph(cds_subset)[["UMAP"]]
   }
+  nodes_UMAP <- nodes_UMAP[,names(V(sub.graph))]
+  #Reorder the vertices
+  degrees <- igraph::degree(sub.graph)
+  endpoints <- names(degrees[degrees == 1])
+  path_result <- igraph::shortest_paths(sub.graph, from = start, to = endpoints[endpoints != start])
+  path_names <- names(path_result$vpath[[1]])   # ordered root -> tip
+  # Build the new sequential, zero-padded names
+  n <- length(path_names)
+  width <- nchar(as.character(n))
+  new_names <- paste0("Y_", formatC(seq_len(n), width = width, flag = "0"))
+  # Create the old-name -> new-name mapping
+  rename_map <- setNames(new_names, path_names)
+  igraph::V(sub.graph)$old_name <- igraph::V(sub.graph)$name
+  igraph::V(sub.graph)$name <- rename_map[igraph::V(sub.graph)$name]
+  #colnames(nodes_UMAP) <- rename_map[colnames(nodes_UMAP)]
+  new_colnames <- unname(rename_map[colnames(nodes_UMAP)])
+  colnames(nodes_UMAP) <- new_colnames
   cds_subset@principal_graph[["UMAP"]] <- sub.graph
-  cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[, names(V(sub.graph))]
+  cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP
   cds_subset@clusters[["UMAP"]]$partitions <- cds_subset@clusters[["UMAP"]]$partitions[colnames(cds_subset)]
-  # recalculate closest vertex for the selected cells (vectorised)
-  cells_UMAP = as.data.frame(reducedDims(cds_subset)[["UMAP"]])
-  colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
-  closest_vertex = .assign_closest_vertex(
-    as.matrix(cells_UMAP[, c("UMAP_1", "UMAP_2")]),
-    as.matrix(nodes_UMAP[, names(V(sub.graph))]))
-  closest_vertex = as.data.frame(closest_vertex)
-  cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
-  if (isTRUE(recalculate_pt)) {
-    # monocle3-internal projection helpers, pulled from the installed package
-    # (the original source_url() download would fail on restricted networks).
-    project2MST <- utils::getFromNamespace("project2MST", "monocle3")
-    ppls        <- utils::getFromNamespace("project_point_to_line_segment", "monocle3")
-    cds_subset  <- .quiet(project2MST(cds_subset, ppls, FALSE, TRUE, "UMAP",
-                                      nodes_UMAP[, names(V(sub.graph))]))
-    cds_subset  <- .quiet(order_cells(cds_subset, root_pr_nodes = start))
+  #recalculate closest vertex and pseudotime for the selected cells
+  if(recalculate_pt == TRUE){
+    source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
+    cds_subset <- project2MST(cds_subset, project_point_to_line_segment, F, T, "UMAP", nodes_UMAP)
+    cds_subset <- order_cells(cds_subset, root_pr_nodes = unname(rename_map[start]))
   }
   return(cds_subset)
 }
