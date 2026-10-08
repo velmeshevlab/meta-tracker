@@ -671,21 +671,14 @@ graph_selection_interactive <- function(cds,
   return(cds)
 }
 
-isolate_lineage <- function(cds, lineage, sel_clusters = NULL, start_regions = NULL, starting_clusters = NULL,
-                            excluded_ages = NULL, excluded_ages_cluster = NULL,
-                            subset = FALSE, N = 5, cl = 1, r = 1) {
-  stopifnot(is.numeric(r), length(r) == 1, r > 0)
-  sel.cells <- isolate_lineage_sub(cds, lineage, sel_clusters = sel_clusters,
-                                   start_regions = start_regions, starting_clusters = starting_clusters,
-                                   excluded_ages = excluded_ages, excluded_ages_cluster = excluded_ages_cluster,
-                                   subset = subset, N = N, cl = cl, r = r)
-  cds@lineages[[lineage]] <- sel.cells
-  cds
+#' @export
+isolate_lineage <- function(cds, lineage, sel_clusters = NULL, start_regions = F, starting_clusters = F, subset = FALSE, N = 5, r = 1, cl = 1){
+sel.cells = .isolate_lineage_sub(cds, lineage, sel_clusters = sel_clusters, start_regions = start_regions, starting_clusters = starting_clusters, subset = subset, N = N, r = r, cl = cl)
+cds@lineages[[lineage]] <- sel.cells
+return(cds)
 }
 
-
-isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions = NULL, starting_clusters = NULL,
-                                excluded_ages = NULL, excluded_ages_cluster = NULL, subset = FALSE, N = 5, cl = 1, r){
+.isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions = NULL, starting_clusters = NULL, subset = FALSE, N = 5, r = NULL, cl = 1){
   sub.graph = cds@graphs[[lineage]]
   nodes_UMAP = cds@principal_graph_aux[["UMAP"]]$dp_mst
   if(subset == F){
@@ -702,11 +695,14 @@ isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions
     nodes_UMAP.sub = as.data.frame(t(nodes_UMAP[,names]))
   }
   #select cells along the graph
-  #mean.dist = path.distance(nodes_UMAP.sub)
+  if(r == NULL){
+    mean.dist = .path_distance(nodes_UMAP.sub)
+    r = mean.dist*N
+  }
   cells_UMAP = as.data.frame(reducedDims(cds)["UMAP"])
   colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
   cells_UMAP = cells_UMAP[,c("UMAP_1", "UMAP_2")]
-  sel.cells = cell.selector(nodes_UMAP.sub, cells_UMAP, r, cl = cl)
+  sel.cells = .cell_selector(nodes_UMAP.sub, cells_UMAP, r, cl = cl)
   #only keep cells in the progenitor and lineage-specific clusters
   sel.cells1 = c()
   sel.cells2 = sel.cells
@@ -719,40 +715,23 @@ isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions
   if(length(sel_clusters) > 0){
     sel.cells2 = names(cds@"clusters"[["UMAP"]]$clusters[cds@"clusters"[["UMAP"]]$clusters %in% sel_clusters])
   }
-  
-  # Optional: exclude cells in all selected clusters with specific age labels, if no cluster specified, then exclude the cells
-  # in all clusters with the specific age labels
-  if (length(excluded_ages) > 0) {
-    cd <- colData(cds)
-    
-    # decide which age column the labels belong to (same check as before)
-    if (all(excluded_ages %in% cd$age_reorder)) {
-      age_col <- "age_reorder"
-    } else if (all(excluded_ages %in% cd$age_details)) {
-      age_col <- "age_details"
-    } else {
-      stop("excluded_ages not all found in a single column. Missing from age_reorder: ",
-           paste(setdiff(excluded_ages, cd$age_reorder), collapse = ", "),
-           " | missing from age_details: ",
-           paste(setdiff(excluded_ages, cd$age_details), collapse = ", "))
-    }
-    
-    cluster_labels <- cds@"clusters"[["UMAP"]]$clusters
-    
-    in_cluster <- if (length(excluded_ages_cluster) > 0) {
-      as.character(cluster_labels) %in% as.character(excluded_ages_cluster)
-    } else {
-      rep(TRUE, length(cluster_labels))     # no cluster given: apply to all cells
-    }
-    
-    cells_to_exclude <- names(cluster_labels)[
-      which(in_cluster & cd[names(cluster_labels), age_col] %in% excluded_ages)
-    ]
-    sel.cells2 <- sel.cells2[!(sel.cells2 %in% cells_to_exclude)]
-  }
   cells = unique(c(sel.cells1, sel.cells2))
   sel.cells = sel.cells[sel.cells %in% cells]
   return(sel.cells)
+}
+
+.cell_selector <- function(path, cells, r, cl){
+sel.cells = c()
+sel.cells = pbapply(path, 1, .selector_sub, cells = cells, r = r, cl = cl, simplify = T)
+return(unique(unlist(sel.cells)))
+}
+
+.selector_sub <- function(node, cells, r){
+x1 = node[1]
+y1 = node[2]
+res = apply(cells, 1, .cell_selector_sub2, coords = c(x1, y1), r = r, simplify = T)
+res = names(res[res == TRUE])
+return(res)
 }
 
 .selector_sub <- function(node, cells, r){
