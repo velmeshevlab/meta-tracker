@@ -47,9 +47,10 @@ This process is repeated for all lineages.
   cds_new = graph_selection_interactive(cds_new, "NOS")
 ```
 After that, run a function to add additional graph nodes if the newly added nodes are too far apart. That ensures that cells are uniformly selected along each trajectory.
+```
 cds_new = densify_lineage_graphs(cds_new)
 ```
-You can thenplot the final graph showing all lineages:
+You can then plot the final graph showing all lineages:
 ```
 plot_combined_graph(cds_new, color_cells_by = "age_reorder") + umap_theme + theme(legend.position = "right") + guides(colour = guide_legend(override.aes = list(size=2)))
 ```
