@@ -87,7 +87,8 @@ plot_lineage_cells <- function(cds, lineage = NULL, cds_sub = NULL,
       stop("Provide either `lineage` (to extract) or `cds_sub` (already extracted).")
     cds_sub <- get_lineage_object(cds, lineage)
   }
-
+  
+  #' @export
   umap_theme <- theme(
     plot.title       = element_blank(),
     legend.position  = "none",
