@@ -1,5 +1,166 @@
 # Import, interactive principal-graph editing, and lineage isolation.
 
+#' Densify all lineage graphs by inserting intermediate nodes on long edges
+#'
+#' Edges added by hand in \code{graph_mod_interactive()} connect two nodes with
+#' no principal points between them. Because \code{isolate_lineage()} selects
+#' cells by proximity to graph \emph{nodes} (radius ~ a few times the typical
+#' node spacing), the middle of a long manual edge falls outside every node's
+#' radius and no cells are picked there — leaving a gap along that edge.
+#'
+#' This walks every lineage in \code{cds@graphs} one-by-one and subdivides any
+#' edge longer than \code{factor * spacing} into roughly evenly spaced
+#' intermediate nodes: it writes the densified graph back to
+#' \code{cds@graphs[[lineage]]}, adds the new node coordinates to the shared
+#' \code{dp_mst}, and (by default) keeps the global principal graph in sync.
+#' It does NOT re-select cells — re-run \code{isolate_lineage()} yourself
+#' afterward (with whatever cluster/region filters you used originally) so the
+#' gaps fill in.
+#'
+#' @param cds A \code{metatracker_data_set} with \code{cds@graphs} populated.
+#' @param spacing Target inter-node spacing, applied to every lineage.
+#'   \code{NULL} (default) uses each lineage's own \emph{median} edge length —
+#'   the median, not the mean, so the long edges being fixed don't inflate the
+#'   target.
+#' @param factor Only edges longer than \code{factor * spacing} are subdivided
+#'   (default 1.5).
+#' @param reduction_method Reduced-dimension name (default "UMAP").
+#' @param update_principal_graph Also keep the global principal graph consistent
+#'   so the new nodes/edges appear in plots and \code{graph_selection_interactive()}
+#'   (default TRUE).
+#' @return The updated \code{cds}.
+#' @export
+densify_lineage_graphs <- function(cds, spacing = NULL, factor = 1.5,
+                                   reduction_method = "UMAP",
+                                   update_principal_graph = TRUE) {
+  lineages <- names(cds@graphs)
+  if (length(lineages) == 0) {
+    warning("No lineage graphs in cds@graphs; nothing to do.", call. = FALSE)
+    return(cds)
+  }
+  for (lin in lineages) {
+    cds <- .densify_one_graph(cds, lin, spacing = spacing, factor = factor,
+                              reduction_method = reduction_method,
+                              update_principal_graph = update_principal_graph)
+  }
+  cds
+}
+
+# Densify a single lineage's graph. Returns the updated cds (unchanged if the
+# lineage has no over-long edges). Loop-safe for shared long edges: the global
+# graph is only re-chained for an edge still present in it, so a trunk edge
+# shared by several lineages isn't chained twice.
+.densify_one_graph <- function(cds, lineage, spacing, factor, reduction_method,
+                               update_principal_graph) {
+  g_sub <- cds@graphs[[lineage]]
+  Y     <- cds@principal_graph_aux[[reduction_method]]$dp_mst      # dims x nodes
+  vs    <- V(g_sub)$name
+  miss  <- setdiff(vs, colnames(Y))
+  if (length(miss) > 0) {
+    warning("Lineage '", lineage, "': nodes missing from dp_mst (",
+            paste(miss, collapse = ", "), "); skipped.", call. = FALSE)
+    return(cds)
+  }
+  coords <- t(Y[, vs, drop = FALSE])                              # nodes x dims
+  el     <- get.edgelist(g_sub)                                   # E x 2 (names)
+  if (nrow(el) == 0) {
+    warning("Lineage '", lineage, "' has no edges; skipped.", call. = FALSE)
+    return(cds)
+  }
+
+  edge_len <- sqrt((coords[el[, 1], 1] - coords[el[, 2], 1])^2 +
+                   (coords[el[, 1], 2] - coords[el[, 2], 2])^2)
+  sp     <- if (is.null(spacing)) stats::median(edge_len) else spacing
+  thresh <- factor * sp
+
+  # next free Y_<k> index across the WHOLE dp_mst (keeps new names globally unique)
+  all_idx <- suppressWarnings(as.integer(sub("^Y_", "", colnames(Y))))
+  next_id <- max(all_idx[is.finite(all_idx)], 0L) + 1L
+
+  new_names   <- character(0)
+  new_coords  <- matrix(numeric(0), nrow = 0, ncol = 2)
+  new_edge_df <- data.frame(from = character(0), to = character(0), stringsAsFactors = FALSE)
+  sub_a <- character(0); sub_b <- character(0)                    # subdivided originals
+  chains_k <- list()                                             # chain segments per original
+
+  for (e in seq_len(nrow(el))) {
+    a <- el[e, 1]; b <- el[e, 2]; L <- edge_len[e]
+    n_seg <- if (L > thresh) max(2L, as.integer(round(L / sp))) else 1L
+    if (n_seg == 1L) {
+      new_edge_df <- rbind(new_edge_df, data.frame(from = a, to = b, stringsAsFactors = FALSE))
+      next
+    }
+    A <- coords[a, ]; B <- coords[b, ]
+    fracs <- seq_len(n_seg - 1L) / n_seg
+    ins   <- paste0("Y_", next_id + seq_len(n_seg - 1L) - 1L)
+    next_id <- next_id + (n_seg - 1L)
+    xy <- cbind(A[1] + fracs * (B[1] - A[1]),
+                A[2] + fracs * (B[2] - A[2]))
+    rownames(xy) <- ins
+    new_names  <- c(new_names, ins)
+    new_coords <- rbind(new_coords, xy)
+    chain <- c(a, ins, b)
+    seg   <- data.frame(from = utils::head(chain, -1), to = utils::tail(chain, -1),
+                        stringsAsFactors = FALSE)
+    new_edge_df <- rbind(new_edge_df, seg)
+    sub_a <- c(sub_a, a); sub_b <- c(sub_b, b)
+    chains_k[[length(sub_a)]] <- seg
+  }
+
+  if (length(new_names) == 0) {
+    message(sprintf("Lineage '%s': no edges over %.3g (= %.3g x spacing %.3g); left as is.",
+                    lineage, thresh, factor, sp))
+    return(cds)
+  }
+  message(sprintf("Lineage '%s': added %d node(s) across %d edge(s) (spacing %.3g).",
+                  lineage, length(new_names), length(sub_a), sp))
+
+  # ---- add new node coordinates to the shared dp_mst ----
+  add_cols <- t(new_coords)                                       # dims x new
+  colnames(add_cols) <- new_names
+  rownames(add_cols) <- rownames(Y)
+  Y_new <- cbind(Y, add_cols)
+  cds@principal_graph_aux[[reduction_method]]$dp_mst <- Y_new
+
+  # ---- rebuild the densified lineage subgraph ----
+  all_nodes <- c(vs, new_names)
+  node_df   <- data.frame(name = all_nodes,
+                          x = Y_new[1, all_nodes], y = Y_new[2, all_nodes],
+                          stringsAsFactors = FALSE)
+  cds@graphs[[lineage]] <- graph_from_data_frame(new_edge_df, vertices = node_df,
+                                                 directed = FALSE)
+
+  # ---- keep the global principal graph consistent (loop-safe) ----
+  if (isTRUE(update_principal_graph)) {
+    G     <- cds@principal_graph[[reduction_method]]
+    G_el  <- get.edgelist(G)
+    rm_mask <- rep(FALSE, nrow(G_el))
+    add_from <- character(0); add_to <- character(0)
+    for (k in seq_along(sub_a)) {
+      a <- sub_a[k]; b <- sub_b[k]
+      hit <- (G_el[, 1] == a & G_el[, 2] == b) | (G_el[, 1] == b & G_el[, 2] == a)
+      if (any(hit)) {                                            # only chain edges still present
+        rm_mask  <- rm_mask | hit
+        add_from <- c(add_from, chains_k[[k]]$from)
+        add_to   <- c(add_to,   chains_k[[k]]$to)
+      }
+    }
+    if (length(add_from) > 0) {
+      kept     <- G_el[!rm_mask, , drop = FALSE]
+      new_el   <- rbind(kept, cbind(add_from, add_to))
+      used_new <- intersect(new_names, unique(c(add_from, add_to)))
+      all_v    <- union(V(G)$name, used_new)
+      vdf      <- data.frame(name = all_v, x = Y_new[1, all_v], y = Y_new[2, all_v],
+                             stringsAsFactors = FALSE)
+      cds@principal_graph[[reduction_method]] <-
+        graph_from_data_frame(as.data.frame(new_el, stringsAsFactors = FALSE),
+                              vertices = vdf, directed = FALSE)
+    }
+  }
+
+  cds
+}
+
 #' @export
 import_monocle <-function(cds){
 cds <- as(cds,"metatracker_data_set")
