@@ -111,10 +111,16 @@ densify_lineage_graph <- function(cds, lineage, spacing = NULL, factor = 1.5,
 }
 
 
-isolate_lineage <- function(cds, lineage, sel_clusters = NULL, start_regions = F, starting_clusters = F, subset = FALSE, N = 5, cl = 1, r = r){
-  sel.cells = isolate_lineage_sub(cds, lineage, sel_clusters = sel_clusters, start_regions = start_regions, starting_clusters = starting_clusters, subset = subset, N = N, cl = cl, r = r)
+isolate_lineage <- function(cds, lineage, sel_clusters = NULL, start_regions = NULL, starting_clusters = NULL,
+                            excluded_ages = NULL, excluded_ages_cluster = NULL,
+                            subset = FALSE, N = 5, cl = 1, r = 1) {
+  stopifnot(is.numeric(r), length(r) == 1, r > 0)
+  sel.cells <- isolate_lineage_sub(cds, lineage, sel_clusters = sel_clusters,
+                                   start_regions = start_regions, starting_clusters = starting_clusters,
+                                   excluded_ages = excluded_ages, excluded_ages_cluster = excluded_ages_cluster,
+                                   subset = subset, N = N, cl = cl, r = r)
   cds@lineages[[lineage]] <- sel.cells
-  return(cds)
+  cds
 }
 
 
@@ -137,7 +143,6 @@ isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions
   }
   #select cells along the graph
   #mean.dist = path.distance(nodes_UMAP.sub)
-  r = r
   cells_UMAP = as.data.frame(reducedDims(cds)["UMAP"])
   colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
   cells_UMAP = cells_UMAP[,c("UMAP_1", "UMAP_2")]
