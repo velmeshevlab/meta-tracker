@@ -784,60 +784,48 @@ return(mean(dists))
 #' @return The subset \code{cds}.
 #' @export
 
-get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = TRUE){
-  start = find_start_node(cds)
+get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = TRUE) {
+  start = .find_start_node(cds)
   if (lineage != FALSE) {
-    sub.graph <- cds@graphs[[lineage]]
-    if (is.list(cds@lineages[[lineage]])) {
-      sel.cells <- cds@lineages[[lineage]]$name
-    } else {
-      sel.cells <- cds@lineages[[lineage]]
-    }
-    if (!is.character(sel.cells)) {
-      print("sel cells are not string")
-    }
-  }
-  else{
+    sub.graph = cds@graphs[[lineage]]
+    sel.cells = .lineage_cells(cds@lineages[[lineage]])   # handles vector OR list($name)
+  } else {
     sel.cells = colnames(cds)
   }
   sel.cells = sel.cells[sel.cells %in% colnames(cds)]
+  if (length(sel.cells) == 0)
+    stop("Lineage '", lineage, "' has no cells present in cds.", call. = FALSE)
   nodes_UMAP = cds@principal_graph_aux[["UMAP"]]$dp_mst
-  if(N != FALSE){
-    if(N < length(sel.cells)){
+  if (N != FALSE) {
+    if (N < length(sel.cells)) {
       sel.cells = sample(sel.cells, N)
     }
   }
-  #subset the moncole object
-  cds_subset = cds[,sel.cells]
-  #set the graph, node and cell UMAP coordinates
-  if(lineage == FALSE){
+  # subset the monocle object
+  cds_subset = cds[, sel.cells]
+  # set the graph, node and cell UMAP coordinates
+  if (lineage == FALSE) {
     sub.graph = principal_graph(cds_subset)[["UMAP"]]
   }
-  nodes_UMAP <- nodes_UMAP[,names(V(sub.graph))]
-  #Reorder the vertices
-  degrees <- igraph::degree(sub.graph)
-  endpoints <- names(degrees[degrees == 1])
-  path_result <- igraph::shortest_paths(sub.graph, from = start, to = endpoints[endpoints != start])
-  path_names <- names(path_result$vpath[[1]])   # ordered root -> tip
-  # Build the new sequential, zero-padded names
-  n <- length(path_names)
-  width <- nchar(as.character(n))
-  new_names <- paste0("Y_", formatC(seq_len(n), width = width, flag = "0"))
-  # Create the old-name -> new-name mapping
-  rename_map <- setNames(new_names, path_names)
-  igraph::V(sub.graph)$old_name <- igraph::V(sub.graph)$name
-  igraph::V(sub.graph)$name <- rename_map[igraph::V(sub.graph)$name]
-  #colnames(nodes_UMAP) <- rename_map[colnames(nodes_UMAP)]
-  new_colnames <- unname(rename_map[colnames(nodes_UMAP)])
-  colnames(nodes_UMAP) <- new_colnames
   cds_subset@principal_graph[["UMAP"]] <- sub.graph
-  cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP
+  cds_subset@principal_graph_aux[["UMAP"]]$dp_mst <- nodes_UMAP[, names(V(sub.graph))]
   cds_subset@clusters[["UMAP"]]$partitions <- cds_subset@clusters[["UMAP"]]$partitions[colnames(cds_subset)]
-  #recalculate closest vertex and pseudotime for the selected cells
-  if(recalculate_pt == TRUE){
-    source_url("https://raw.githubusercontent.com/cole-trapnell-lab/monocle3/master/R/learn_graph.R")
-    cds_subset <- project2MST(cds_subset, project_point_to_line_segment, F, T, "UMAP", nodes_UMAP)
-    cds_subset <- order_cells(cds_subset, root_pr_nodes = unname(rename_map[start]))
+  # recalculate closest vertex for the selected cells (vectorised)
+  cells_UMAP = as.data.frame(reducedDims(cds_subset)[["UMAP"]])
+  colnames(cells_UMAP) <- toupper(colnames(cells_UMAP))
+  closest_vertex = .assign_closest_vertex(
+    as.matrix(cells_UMAP[, c("UMAP_1", "UMAP_2")]),
+    as.matrix(nodes_UMAP[, names(V(sub.graph))]))
+  closest_vertex = as.data.frame(closest_vertex)
+  cds_subset@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex <- closest_vertex
+  if (isTRUE(recalculate_pt)) {
+    # monocle3-internal projection helpers, pulled from the installed package
+    # (the original source_url() download would fail on restricted networks).
+    project2MST <- utils::getFromNamespace("project2MST", "monocle3")
+    ppls        <- utils::getFromNamespace("project_point_to_line_segment", "monocle3")
+    cds_subset  <- .quiet(project2MST(cds_subset, ppls, FALSE, TRUE, "UMAP",
+                                      nodes_UMAP[, names(V(sub.graph))]))
+    cds_subset  <- .quiet(order_cells(cds_subset, root_pr_nodes = start))
   }
   return(cds_subset)
 }
