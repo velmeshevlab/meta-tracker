@@ -785,7 +785,7 @@ return(mean(dists))
 #' @export
 
 get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = TRUE){
-  start = find_start_node(cds)
+  start = .find_start_node(cds)
   if (lineage != FALSE) {
     sub.graph <- cds@graphs[[lineage]]
     if (is.list(cds@lineages[[lineage]])) {
