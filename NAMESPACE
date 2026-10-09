@@ -23,6 +23,7 @@ export(get_lineage_object)
 export(compress_lineage)
 export(compress_lineages)
 export(densify_lineage_graphs)
+export(pt_recalculate)
 
 exportClasses(metatracker_data_set)
 
