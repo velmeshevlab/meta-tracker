@@ -46,10 +46,9 @@ This process is repeated for all lineages.
   cds_new = graph_selection_interactive(cds_new, "LAMP5")
   cds_new = graph_selection_interactive(cds_new, "NOS")
 ```
-After that, run a function to add additional graph nodes if the newly added nodes are too far apart. That ensures that cells are uniformly selected along each trajectory. Then, recalculate pseudotime for individual lineages.
+After that, run a function to add additional graph nodes if the newly added nodes are too far apart. That ensures that cells are uniformly selected along each trajectory.
 ```
 cds_new = densify_lineage_graphs(cds_new)
-cds_new = pt_recalculate(cds_new)
 ```
 You can then plot the final graph showing all lineages:
 ```
@@ -89,6 +88,10 @@ Repeat for the rest of the trajectories.
   cds_new <- isolate_lineage(cds_new, "LAMP5", sel_clusters = sel.cluster, cl = 8, r = 1)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "20")
   cds_new <- isolate_lineage(cds_new, "NOS", sel_clusters = sel.cluster, cl = 8, r = 1)
+```
+Then, recalculate pseudotime for  lineages based on individual lineage graphs.
+```
+cds_new = pt_recalculate(cds_new)
 ```
 ## Part two: compressing trajectories and identifying lineage-specific genes.
 Now, we want to identify and visualize lineage-specific genes. We do this by identifying dynamically expressed genes in each trajectory and comparing trajectories to find lineage-specific genes.
