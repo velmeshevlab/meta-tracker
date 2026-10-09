@@ -790,7 +790,7 @@ get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt =
     sub.graph = cds@graphs[[lineage]]
     if(is.null(sub.graph)){
     sub.graph = cds@graphs[[lineage]]$subgraph_reorder
-      {
+      }
     sel.cells = .lineage_cells(cds@lineages[[lineage]])   # handles vector OR list($name)
   } else {
     sel.cells = colnames(cds)
