@@ -918,3 +918,18 @@ pt_recalculate <- function(cds, lineages = names(cds@lineages), N = FALSE, recal
   }
   cds
 }
+
+# Return the cell names for a lineage entry, whether it is stored as a plain
+# character vector or wrapped in a list (e.g. list(VIP = c(...)) or list(cells = c(...))).
+.lineage_cells <- function(x) {
+  if (is.null(x))
+    stop("Lineage entry is NULL. Check names(cds@lineages).", call. = FALSE)
+  if (is.character(x)) return(unname(x))
+  if (is.factor(x))    return(as.character(x))
+  if (is.list(x)) {
+    if (!is.null(x$cells)) return(.lineage_cells(x$cells))
+    return(unique(unname(as.character(unlist(x, use.names = FALSE)))))
+  }
+  stop("Don't know how to extract cells from an object of class '",
+       class(x)[1], "'.", call. = FALSE)
+}
