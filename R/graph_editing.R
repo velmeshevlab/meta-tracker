@@ -872,3 +872,49 @@ get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt =
   names(out) <- rownames(cells)
   out
 }
+
+#' @export
+pt_recalculate <- function(cds, lineages = names(cds@lineages), N = FALSE, recalculate_pt = TRUE) {
+  for (lineage in lineages) {
+    message("Processing lineage ", lineage)
+    # skip lineages already converted by an earlier run
+    sub.graph <- cds@graphs[[lineage]]
+    if (!inherits(sub.graph, "igraph")) {
+      message("  skipping ", lineage, ": cds@graphs[[lineage]] is not an igraph (already converted?)")
+      next
+    }
+    lin <- cds@lineages[[lineage]]
+    cell_names <- if (is.list(lin)) lin$name else lin
+    lineage_sub <- get_lineage_object(cds, lineage = lineage, N = N, recalculate_pt = recalculate_pt)
+    new.graph <- lineage_sub@principal_graph$UMAP
+    dp_mst    <- lineage_sub@principal_graph_aux@listData[["UMAP"]][["dp_mst"]]
+
+    # consistency checks, done before anything is stored
+    n_sub <- igraph::vcount(sub.graph)
+    n_new <- igraph::vcount(new.graph)
+    n_dp  <- ncol(dp_mst)
+    if (!(n_sub == n_new && n_new == n_dp)) {
+      stop("lineage '", lineage, "': sizes do not match -> subgraph: ", n_sub,
+           " vertices, reordered graph: ", n_new, " vertices, dp_mst: ", n_dp, " columns", call. = FALSE)
+    }
+    if (!setequal(igraph::V(new.graph)$name, colnames(dp_mst))) {
+      stop("lineage '", lineage, "': vertex names of the reordered graph and the dp_mst columns differ",
+           call. = FALSE)
+    }
+
+    pt <- pseudotime(lineage_sub)
+    stopifnot(all(cell_names %in% names(pt)))
+
+    cds@lineages[[lineage]] <- list(
+      name = cell_names,
+      updated_pt = pt[cell_names]
+    )
+    cds@graphs[[lineage]] <- list(
+      subgraph = sub.graph,
+      subgraph_reorder = new.graph,
+      dp_mst = dp_mst
+    )
+    rm(lineage_sub, pt, sub.graph, new.graph, dp_mst); gc()
+  }
+  cds
+}
