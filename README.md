@@ -64,7 +64,7 @@ You can specify clusters to consider to make sure not to include cells from clus
 First, do a sanity check by running cell selection for one lineage and plotting the selected cells. Adjust N if needed. Takes 3 min/lineage with 8 cores.
 ```
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "6")
-  cds_new <- isolate_lineage(cds_new, "VIP", sel_clusters = sel.cluster, cl = 16, r = 1)
+  cds_new <- isolate_lineage(cds_new, "VIP", sel_clusters = sel.cluster, cl = 12, r = 1)
 
   plot_lineage_cells(cds_new, lineage = "VIP")
 ```
@@ -72,23 +72,23 @@ First, do a sanity check by running cell selection for one lineage and plotting 
 Repeat for the rest of the trajectories.
 ```
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "11")
-  cds_new <- isolate_lineage(cds_new, "SST", sel_clusters = sel.cluster, cl = 16, r = 1)
+  cds_new <- isolate_lineage(cds_new, "SST", sel_clusters = sel.cluster, cl = 12, r = 1)
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "10")
-  cds_new <- isolate_lineage(cds_new, "SST_RELN", sel_clusters = sel.cluster, cl = 16, r = 1)
+  cds_new <- isolate_lineage(cds_new, "SST_RELN", sel_clusters = sel.cluster, cl = 12, r = 1)
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "7")
-  cds_new <- isolate_lineage(cds_new, "PV", sel_clusters = sel.cluster, cl = 16, r = 1)
+  cds_new <- isolate_lineage(cds_new, "PV", sel_clusters = sel.cluster, cl = 12, r = 1)
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "9", "14", "22")
-  cds_new <- isolate_lineage(cds_new, "PV_MME", sel_clusters = sel.cluster, cl = 16, r = 1)
+  cds_new <- isolate_lineage(cds_new, "PV_MME", sel_clusters = sel.cluster, cl = 12, r = 1)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "29")
-  cds_new <- isolate_lineage(cds_new, "CALB2", sel_clusters = sel.cluster, cl = 16, r = 1)
+  cds_new <- isolate_lineage(cds_new, "CALB2", sel_clusters = sel.cluster, cl = 12, r = 1)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "28", "27")
-  cds_new <- isolate_lineage(cds_new, "CCK", sel_clusters = sel.cluster, cl = 16, r = 1)
+  cds_new <- isolate_lineage(cds_new, "CCK", sel_clusters = sel.cluster, cl = 12, r = 1)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "12")
-  cds_new <- isolate_lineage(cds_new, "RELN", sel_clusters = sel.cluster, cl = 16, N = r = 1)
+  cds_new <- isolate_lineage(cds_new, "RELN", sel_clusters = sel.cluster, cl = 12, N = r = 1)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "26")
-  cds_new <- isolate_lineage(cds_new, "LAMP5", sel_clusters = sel.cluster, cl = 16, N = r = 1)
+  cds_new <- isolate_lineage(cds_new, "LAMP5", sel_clusters = sel.cluster, cl = 12, N = r = 1)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "20")
-  cds_new <- isolate_lineage(cds_new, "PV", sel_clusters = sel.cluster, cl = 16, N = r = 1)
+  cds_new <- isolate_lineage(cds_new, "PV", sel_clusters = sel.cluster, cl = 12, N = r = 1)
 ```
 ## Part two: compressing trajectories and identifying lineage-specific genes.
 Now, we want to identify and visualize lineage-specific genes. We do this by identifying dynamically expressed genes in each trajectory and comparing trajectories to find lineage-specific genes.
