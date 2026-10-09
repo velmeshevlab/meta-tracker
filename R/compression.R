@@ -114,7 +114,7 @@
 # cells x genes matrix is ever formed. Returns the small N x genes meta matrices.
 .compress_prep <- function(cds, lineage, N, method = "sum"){
   cds_sub       <- get_lineage_object(cds, lineage)
-  updated_pt    <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
+  updated_pt    <- cds@lineages[[lineage]]$updated_pt 
   cell_barcodes <- .lineage_cells(cds@lineages[[lineage]])
   sel.cells     <- cell_barcodes[cell_barcodes %in% colnames(cds_sub)]
   if (length(sel.cells) == 0)
