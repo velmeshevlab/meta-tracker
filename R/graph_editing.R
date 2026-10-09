@@ -839,16 +839,16 @@ get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt =
 }
 
 # Most frequent degree-1 (leaf) node across lineage graphs = shared start.
-.find_start_node <- function(cds) {
-  nodes = c()
+.find_start_node <- function(cds, which = "subgraph") {
+  nodes <- c()
   for (name in names(cds@graphs)) {
-    sub.graph = cds@graphs[[name]]
-    start_end = V(sub.graph)[degree(sub.graph) == 1]$name
-    nodes = append(nodes, start_end)
+    sub.graph <- cds@graphs[[name]]
+    if (!inherits(sub.graph, "igraph")) sub.graph <- sub.graph[[which]]   # unwrap converted entries
+    start_end <- V(sub.graph)[degree(sub.graph) == 1]$name
+    nodes <- append(nodes, start_end)
   }
-  nodes = as.character(nodes)
-  start = names(sort(table(nodes), decreasing = TRUE)[1])
-  start
+  nodes <- as.character(nodes)
+  names(sort(table(nodes), decreasing = TRUE)[1])
 }
 
 # Nearest graph vertex for every cell, vectorised.
