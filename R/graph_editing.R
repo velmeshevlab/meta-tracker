@@ -679,7 +679,7 @@ return(cds)
 }
 
 .isolate_lineage_sub <- function(cds, lineage, sel_clusters = NULL, start_regions = NULL, starting_clusters = NULL, subset = FALSE, N = 5, r = NULL, cl = 1){
-  sub.graph = cds_new@graphs[["VIP"]]$subgraph_reorder
+  sub.graph = cds_new@graphs[["VIP"]]
   nodes_UMAP = cds@principal_graph_aux[["UMAP"]]$dp_mst
   if(subset == F){
     nodes_UMAP.sub = as.data.frame(t(nodes_UMAP[,names(V(sub.graph))]))
