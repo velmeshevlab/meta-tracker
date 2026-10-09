@@ -109,7 +109,7 @@ cds_F  = compress_lineages(cds_F , method = "all", N = 1000, ID = FALSE, cl = 4)
 ```
 ### 2.2. Now, we find genes that are dynamically expressed in each lineage. Takes ~20 min for 10 lineages (275,000 cells and 15,000 genes).
 ```
-  cds_F <- within_lineage_DE_par(cds = cds_F, cores = 8)
+  cds_F <- within_lineage_DE_par(cds = cds_F, cores = 4)
 ```
 ### 2.3. Next, we can identify lineage-specific genes. We do it by comparing each lineage to all other lineages and calculating meta p value and average fold change. Takes ~2.5 hours with 8 cores.
 ###      We only keep the genes that have significant p values in all lineage comparisons and are also dynamically expressed.
