@@ -1,73 +1,111 @@
 # Trajectory graph plotting.
 
 #' @export
-plot_combined_graph <- function(cds, reduction_method = "UMAP", color_cells_by = NULL, alpha = 0.4) {
+plot_combined_graph <- function(cds, reduction_method = "UMAP", color_cells_by = NULL, alpha = 0.4,
+                                label_clusters = FALSE, highlight_clusters = NULL,
+                                other_color = "grey85", show_others = TRUE,
+                                highlight_lineage = NULL, highlight_color = "orange",
+                                highlight_size = 0.3, highlight_alpha = 0.6,
+                                highlight_on_top = TRUE, graph_which = "subgraph") {
   library(igraph)
   library(ggplot2)
   library(dplyr)
-  
-  # Extract all graphs and merge into one
-  graph_list <- cds@graphs
+
+  # accept both forms: a plain igraph, or the converted list(subgraph, subgraph_reorder, dp_mst)
+  graph_list <- lapply(cds@graphs, function(g) {
+    if (inherits(g, "igraph")) g else g[[graph_which]]
+  })
+  stopifnot(all(vapply(graph_list, inherits, logical(1), what = "igraph")))
+
   combined_graph <- Reduce(igraph::union, graph_list)
-  
-  # Get graph node names
   graph_nodes <- V(combined_graph)$name
-  
-  # Get graph node coordinates from dp_mst
+
   node_coords <- as.data.frame(t(cds@principal_graph_aux[[reduction_method]]$dp_mst))
   node_coords$node <- rownames(node_coords)
   colnames(node_coords)[1:2] <- c("x", "y")
-  
   node_coords <- node_coords %>% filter(node %in% graph_nodes)
-  
-  # Get edge list with coordinates
+
   el <- igraph::get.edgelist(combined_graph)
   edges_df <- data.frame(
-    from = el[,1],
-    to = el[,2],
-    x = node_coords$x[match(el[,1], node_coords$node)],
-    y = node_coords$y[match(el[,1], node_coords$node)],
+    from = el[,1], to = el[,2],
+    x    = node_coords$x[match(el[,1], node_coords$node)],
+    y    = node_coords$y[match(el[,1], node_coords$node)],
     xend = node_coords$x[match(el[,2], node_coords$node)],
     yend = node_coords$y[match(el[,2], node_coords$node)]
   )
-  
-  # Get cell coordinates
+
   cell_coords <- as.data.frame(reducedDims(cds)[[reduction_method]], stringsAsFactors = FALSE)
   colnames(cell_coords) <- c("x", "y")
-  
-  # Prepare cell coordinates with optional color
   cell_coords$cell_id <- rownames(cell_coords)
-  if (!is.null(color_cells_by) && color_cells_by %in% colnames(colData(cds))) {
-    cell_coords$color <- colData(cds)[cell_coords$cell_id, color_cells_by]
+  has_color <- !is.null(color_cells_by) && color_cells_by %in% colnames(colData(cds))
+  if (has_color) {
+    cell_coords$color <- as.character(colData(cds)[cell_coords$cell_id, color_cells_by])
   } else {
-    cell_coords$color <- NA
+    cell_coords$color <- NA_character_
   }
-  
-  # Plot
-  ggplot() +
-    geom_point(data = cell_coords, aes(x = x, y = y, color = color), size = 0.01, alpha = alpha) +
+
+  if (!is.null(highlight_clusters) && !has_color)
+    stop("highlight_clusters needs color_cells_by (the column that holds the cluster labels)")
+
+  highlight_coords <- NULL
+  if (!is.null(highlight_lineage)) {
+    if (!highlight_lineage %in% names(cds@lineages))
+      stop("lineage '", highlight_lineage, "' not found in cds@lineages")
+    lin <- cds@lineages[[highlight_lineage]]
+    lin_cells <- if (is.list(lin)) lin$name else lin
+    highlight_coords <- cell_coords[cell_coords$cell_id %in% lin_cells, ]
+    if (nrow(highlight_coords) == 0) stop("none of the lineage cells were found in the UMAP")
+  }
+
+  hl_layer <- NULL
+  if (!is.null(highlight_coords)) {
+    hl_layer <- geom_point(data = highlight_coords, aes(x = x, y = y),
+                           color = highlight_color, size = highlight_size, alpha = highlight_alpha)
+  }
+
+  p <- ggplot()
+  if (!highlight_on_top) p <- p + hl_layer
+
+  if (!has_color) {
+    # plain grey cells, no color aesthetic, so there is no "NA" legend
+    p <- p + geom_point(data = cell_coords, aes(x = x, y = y),
+                        color = other_color, size = 0.01, alpha = alpha)
+    label_df <- NULL
+  } else if (is.null(highlight_clusters)) {
+    p <- p + geom_point(data = cell_coords, aes(x = x, y = y, color = color), size = 0.01, alpha = alpha)
+    label_df <- cell_coords
+  } else {
+    is_hl <- cell_coords$color %in% as.character(highlight_clusters)
+    if (!any(is_hl)) stop("none of highlight_clusters found in ", color_cells_by)
+    if (show_others) {
+      p <- p + geom_point(data = cell_coords[!is_hl, ], aes(x = x, y = y),
+                          color = other_color, size = 0.01, alpha = alpha)
+    }
+    p <- p + geom_point(data = cell_coords[is_hl, ], aes(x = x, y = y, color = color),
+                        size = 0.01, alpha = alpha)
+    label_df <- cell_coords[is_hl, ]
+  }
+
+  if (highlight_on_top) p <- p + hl_layer          # above the cells, below the trajectory
+
+  p <- p +
     geom_segment(data = edges_df, aes(x = x, y = y, xend = xend, yend = yend), color = "black", size = 1) +
     geom_point(data = node_coords, aes(x = x, y = y), color = "blue", size = 0.2) +
     theme_minimal() +
     coord_fixed()
+
+  if (label_clusters && !is.null(label_df)) {
+    centroids <- label_df %>%
+      group_by(color) %>%
+      summarise(x = median(x), y = median(y), .groups = "drop")
+    p <- p + ggrepel::geom_text_repel(data = centroids, aes(x = x, y = y, label = color),
+                                      size = 5, color = "black", fontface = "bold",
+                                      bg.color = "white", bg.r = 0.15, max.overlaps = Inf)
+  }
+
+  p
 }
-#' Plot cells of an isolated lineage over the full embedding extent
-#'
-#' Draws the cells (and trajectory graph) of a single isolated lineage with
-#' \code{monocle3::plot_cells}, but framed to the axis limits of the *full*
-#' object so lineages are directly comparable across plots.
-#'
-#' @param cds Full \code{metatracker_data_set}: supplies the embedding limits,
-#'   and (unless \code{cds_sub} is given) the lineage to extract.
-#' @param lineage Name of the lineage to plot (e.g. "VIP"). Ignored when
-#'   \code{cds_sub} is supplied; required otherwise.
-#' @param cds_sub Optional pre-extracted lineage object. If \code{NULL}, it is
-#'   obtained with \code{get_lineage_object(cds, lineage)}.
-#' @param reduction Reduced-dimension name used for the axis limits (default "UMAP").
-#' @param color_cells_by Column passed to \code{plot_cells} (default "pseudotime").
-#' @param cell_size,graph_label_size,trajectory_graph_color,trajectory_graph_segment_size
-#'   Passed through to \code{plot_cells}.
-#' @return A \code{ggplot} object.
+
 #' @export
 plot_lineage_cells <- function(cds, lineage = NULL, cds_sub = NULL,
                                reduction = "UMAP",
