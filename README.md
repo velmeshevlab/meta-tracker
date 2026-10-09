@@ -64,7 +64,7 @@ You can specify clusters to consider to make sure not to include cells from clus
 First, do a sanity check by running cell selection for one lineage and plotting the selected cells. Adjust N if needed. Takes 3 min/lineage with 8 cores.
 ```
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "6")
-  cds_new <- isolate_lineage(cds_new, "VIP", sel_clusters = sel.cluster, cl = 8, r = 1)
+  cds_new <- isolate_lineage(cds_new, "VIP", sel_clusters = sel.cluster, cl = 16, r = 1)
 
   plot_lineage_cells(cds_new, lineage = "VIP")
 ```
