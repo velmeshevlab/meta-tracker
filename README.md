@@ -105,7 +105,7 @@ First, we filter out low expressed genes. Any gene expressed in at least 1% of s
 Here, we generate 1000 meta-cells along each trajectory. We use parallel processing to speed up this step. In this case, we don't care if the cells are from the same biological sample or now, hence ID = FALSE.
 It takes ~10 min for 10 lineages, 275,000 cells and 15,000 genes with 5 cores.
 ```
-cds_new = compress_lineages(cds, method = "all", N = 1000, ID = FALSE, cl = 5)
+cds_F  = compress_lineages(cds_F , method = "all", N = 1000, ID = FALSE, cl = 4)
 ```
 ### 2.2. Now, we find genes that are dynamically expressed in each lineage. Takes ~20 min for 10 lineages (275,000 cells and 15,000 genes).
 ```
