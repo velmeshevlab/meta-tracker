@@ -84,11 +84,11 @@ Repeat for the rest of the trajectories.
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "28", "27")
   cds_new <- isolate_lineage(cds_new, "CCK", sel_clusters = sel.cluster, cl = 12, r = 1)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "12")
-  cds_new <- isolate_lineage(cds_new, "RELN", sel_clusters = sel.cluster, cl = 12, N = r = 1)
+  cds_new <- isolate_lineage(cds_new, "RELN", sel_clusters = sel.cluster, cl = 12, r = 1)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "26")
-  cds_new <- isolate_lineage(cds_new, "LAMP5", sel_clusters = sel.cluster, cl = 12, N = r = 1)
+  cds_new <- isolate_lineage(cds_new, "LAMP5", sel_clusters = sel.cluster, cl = 12, r = 1)
   sel.cluster = c("24", "8", "17", "5", "21", "19", "2", "3", "13", "27", "20")
-  cds_new <- isolate_lineage(cds_new, "PV", sel_clusters = sel.cluster, cl = 12, N = r = 1)
+  cds_new <- isolate_lineage(cds_new, "PV", sel_clusters = sel.cluster, cl = 12, r = 1)
 ```
 ## Part two: compressing trajectories and identifying lineage-specific genes.
 Now, we want to identify and visualize lineage-specific genes. We do this by identifying dynamically expressed genes in each trajectory and comparing trajectories to find lineage-specific genes.
