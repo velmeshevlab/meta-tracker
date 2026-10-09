@@ -787,7 +787,10 @@ return(mean(dists))
 get_lineage_object <- function(cds, lineage = FALSE, N = FALSE, recalculate_pt = TRUE) {
   start = .find_start_node(cds)
   if (lineage != FALSE) {
+    sub.graph = cds@graphs[[lineage]]
+    if(is.null(sub.graph)){
     sub.graph = cds@graphs[[lineage]]$subgraph_reorder
+      {
     sel.cells = .lineage_cells(cds@lineages[[lineage]])   # handles vector OR list($name)
   } else {
     sel.cells = colnames(cds)
