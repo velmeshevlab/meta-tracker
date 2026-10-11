@@ -105,16 +105,21 @@
 # .compress_prep() in the parent and .compress_fit_prep() in workers, so workers
 # receive only the small aggregated matrices, never the per-cell data.
 .compress_expression <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE){
-  prep <- .compress_prep(cds, lineage, N = N, method = method)
+  prep <- .compress_prep(cds, lineage, N = N, method = method, pt = "updated")
   .compress_fit_prep(prep, N = N, method = method, ID = ID, progress = progress)
 }
 
 # Parent-side: project + subset, then bin cells into N meta-cells and aggregate
 # gene counts with a SPARSE matrix multiply (counts %*% indicator) -- no dense
 # cells x genes matrix is ever formed. Returns the small N x genes meta matrices.
-.compress_prep <- function(cds, lineage, N, method = "sum"){
+.compress_prep <- function(cds, lineage, N, method = "sum", pt = "updated"){
   cds_sub       <- get_lineage_object(cds, lineage)
-  updated_pt    <- cds@lineages[[lineage]]$updated_pt 
+  if(pt == "updated"){
+    pt    <- cds@lineages[[lineage]]$updated_pt
+  }
+  if(pt = "original"){
+    pt    <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
+  }
   cell_barcodes <- .lineage_cells(cds@lineages[[lineage]])
   sel.cells     <- cell_barcodes[cell_barcodes %in% colnames(cds_sub)]
   if (length(sel.cells) == 0)
@@ -130,7 +135,7 @@
 
   # per-cell vectors aligned to counts columns
   sf   <- pData(cds_subset)[, "Size_Factor"]; names(sf) <- colnames(cds_subset); sf <- sf[cells]
-  ptv  <- as.numeric(updated_pt[cells])
+  ptv  <- as.numeric(pt[cells])
   umap <- reducedDims(cds_subset)[["UMAP"]][cells, , drop = FALSE]
 
   # meta-cell assignment: bin cells by pseudotime rank (order-independent, matches
@@ -169,7 +174,7 @@
   }
 
   list(lineage = lineage, meta_sum = meta_sum_ordered, meta_mean = meta_mean_ordered,
-       lineage_entry = list(name = cell_barcodes, updated_pt = updated_pt))
+       lineage_entry = list(name = cell_barcodes, updated_pt = pt))
 }
 
 # Worker-side: per-gene quasipoisson fit on the (small) aggregated meta matrix.
