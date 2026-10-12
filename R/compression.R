@@ -117,7 +117,7 @@
   if(pt == "updated"){
     pt    <- cds@lineages[[lineage]]$updated_pt
   }
-  if(pt = "original"){
+  if(pt == "original"){
     pt    <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
   }
   cell_barcodes <- .lineage_cells(cds@lineages[[lineage]])
