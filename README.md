@@ -73,7 +73,7 @@ Repeat for the rest of the trajectories.
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "11")
   cds_new <- isolate_lineage(cds_new, "SST", sel_clusters = sel.cluster, cl = 8, r = 1)
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "10")
-  cds_new <- isolate_lineage(cds_new, "SST_RELN", sel_clusters = sel.cluster, cl = 12, r = 1)
+  cds_new <- isolate_lineage(cds_new, "SST_RELN", sel_clusters = sel.cluster, cl = 8, r = 1)
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "7")
   cds_new <- isolate_lineage(cds_new, "PV", sel_clusters = sel.cluster, cl = 8, r = 1)
   sel.cluster = c("24", "8", "17", "5", "1", "21", "23", "15", "0", "18", "9", "14", "22")
