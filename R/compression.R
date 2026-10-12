@@ -104,20 +104,20 @@
 # compress_lineage() (single lineage) runs both here; compress_lineages() calls
 # .compress_prep() in the parent and .compress_fit_prep() in workers, so workers
 # receive only the small aggregated matrices, never the per-cell data.
-.compress_expression <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE){
-  prep <- .compress_prep(cds, lineage, N = N, method = method, pt = "updated")
+.compress_expression <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE, pt_use = "updated"){
+  prep <- .compress_prep(cds, lineage, N = N, method = method, pt_use = pt_use)
   .compress_fit_prep(prep, N = N, method = method, ID = ID, progress = progress)
 }
 
 # Parent-side: project + subset, then bin cells into N meta-cells and aggregate
 # gene counts with a SPARSE matrix multiply (counts %*% indicator) -- no dense
 # cells x genes matrix is ever formed. Returns the small N x genes meta matrices.
-.compress_prep <- function(cds, lineage, N, method = "sum", pt = "updated"){
+.compress_prep <- function(cds, lineage, N, method = "sum", pt_use = "updated"){
   cds_sub       <- get_lineage_object(cds, lineage)
-  if(pt == "updated"){
+  if(pt_use == "updated"){
     pt    <- cds@lineages[[lineage]]$updated_pt
   }
-  if(pt == "original"){
+  if(pt_use == "original"){
     pt    <- cds_sub@principal_graph_aux@listData[["UMAP"]][["pseudotime"]]
   }
   cell_barcodes <- .lineage_cells(cds@lineages[[lineage]])
@@ -244,9 +244,9 @@
 #' @return The \code{cds} with \code{@lineages}, \code{@expression},
 #'   \code{@expectation}, and \code{@pseudotime} populated for \code{lineage}.
 #' @export
-compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE){
+compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE, progress = TRUE, pt_use = "updated"){
   exp = .compress_expression(cds, lineage = lineage, method = method, N = N,
-                             ID = ID, progress = progress)
+                             ID = ID, progress = progress, pt_use = pt_use)
   cds@lineages[[lineage]]    <- exp$lineage
   cds@expression[[lineage]]  <- exp$expression
   cds@expectation[[lineage]] <- exp$expectation
