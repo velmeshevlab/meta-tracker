@@ -285,7 +285,7 @@ compress_lineage <- function(cds, lineage, N, method = "sum", ID = FALSE, progre
 #' @return The \code{cds} with all requested lineages compressed.
 #' @export
 compress_lineages <- function(cds, lineages = names(cds@lineages), N,
-                              method = "sum", ID = FALSE, cl = 1, monitor = TRUE){
+                              method = "sum", ID = FALSE, pt = "updated" cl = 1, monitor = TRUE){
   if (length(lineages) == 0) stop("No lineages to compress.", call. = FALSE)
   cat(sprintf("Compressing %d lineage(s): %s\n",
               length(lineages), paste(lineages, collapse = ", ")))
@@ -366,7 +366,7 @@ compress_lineages <- function(cds, lineages = names(cds@lineages), N,
     done <- done + length(ch)
     cat(sprintf("%d/%d lineages are being processed\n", done, n)); utils::flush.console()
     # Phase 1 (this chunk): build the small per-lineage payloads in the parent.
-    preps <- lapply(ch, function(lin) .compress_prep(cds, lin, N = N, method = method))
+    preps <- lapply(ch, function(lin) .compress_prep(cds, lin, N = N, method = method), pt = pt)
     names(preps) <- ch
     # Phase 2 (this chunk): fit in parallel over the payloads.
     res <- c(res, run_chunk(preps))
