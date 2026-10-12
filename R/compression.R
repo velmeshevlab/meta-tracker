@@ -366,7 +366,7 @@ compress_lineages <- function(cds, lineages = names(cds@lineages), N,
     done <- done + length(ch)
     cat(sprintf("%d/%d lineages are being processed\n", done, n)); utils::flush.console()
     # Phase 1 (this chunk): build the small per-lineage payloads in the parent.
-    preps <- lapply(ch, function(lin) .compress_prep(cds, lin, N = N, method = method), pt = pt)
+    preps <- lapply(ch, function(lin) .compress_prep(cds, lin, N = N, method = method, pt = pt))
     names(preps) <- ch
     # Phase 2 (this chunk): fit in parallel over the payloads.
     res <- c(res, run_chunk(preps))
