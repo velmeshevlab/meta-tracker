@@ -124,7 +124,7 @@ cds_F  = compress_lineages(cds_F , method = "all", N = 1000, ID = FALSE, cl = 4)
 ```
 ### 2.5. Plot selected lineage-specific genes.
 ```
-  plot_multiple(cds_F, "LHX6", names(cds_F@lineages))
+  plot_multiple(cds_F, "SATB1", names(cds_F@lineages), points = F, legend_position = "right")
 ```
 ### 2.7. Finally, format all results and write them to two tables (lineage-specific genes and branch-specific genes).
 ```
