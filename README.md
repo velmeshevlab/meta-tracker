@@ -128,7 +128,8 @@ cds_F  = compress_lineages(cds_F , method = "all", N = 1000, ID = FALSE, cl = 4)
 ```
 ### 2.7. Finally, format all results and write them to two tables (lineage-specific genes and branch-specific genes).
 ```
-  res = compile_metatracker_results(cds_F)
-  write.table(res$lineage_genes, "lineage_genes_IN.tsv", sep = "\t", quote = F, row.names = F)
-  write.table(res$branch_genes, "branch_genes_IN.tsv", sep = "\t", quote = F, row.names = F)
+  res <- compile_metatracker_results(cds_F)
+  write.table(res$lineage_pattern, "lineage_pattern_genes.tsv", sep="\t", quote=FALSE, row.names=FALSE)
+  write.table(res$lineage_diffend, "lineage_diffend_genes.tsv", sep="\t", quote=FALSE, row.names=FALSE)
+  write.table(res$branch_genes,    "branch_genes.tsv",          sep="\t", quote=FALSE, row.names=FALSE)
 ```
