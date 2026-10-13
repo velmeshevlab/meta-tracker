@@ -24,6 +24,7 @@ export(compress_lineage)
 export(compress_lineages)
 export(densify_lineage_graphs)
 export(pt_recalculate)
+export(compile_metatracker_results)
 
 exportClasses(metatracker_data_set)
 
