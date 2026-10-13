@@ -673,7 +673,13 @@ format_lineage_genes <- function(cds, type = NULL){
 }
 
 .find_branches <- function(cds, drop_non_binary = TRUE){
-  graph_list = cds@graphs
+  lineages = names(cds@graphs)
+  graph_list = list()
+  for(lineage in lineages){
+      graph = cds@graphs[[lineage]]
+      graph = graph$subgraph_reorder
+      graph_list[[lineage]] <- graph
+  }
   start = .find_start_point(graph_list)
   branch_points = .get_branch_points(graph_list)
 
