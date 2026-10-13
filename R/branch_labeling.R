@@ -15,7 +15,13 @@ label_branches <- function(cds, file = "branches.pdf",
 
 # --- Core annotation ----------------------------------------------------------
 .annotate_branches <- function(cds, drop_non_binary = TRUE) {
-  graph_list <- cds@graphs
+  lineages = names(cds_F@graphs)
+  graph_list = list()
+  for(lineage in lineages){
+      graph = cds_F@graphs[[lineage]]
+      graph = graph$subgraph_reorder
+      graph_list[[lineage]] <- graph
+  }
   start      <- .find_start_point(graph_list)
   bps        <- .get_branch_points(graph_list)
 
