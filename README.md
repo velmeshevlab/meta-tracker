@@ -124,5 +124,11 @@ cds_F  = compress_lineages(cds_F , method = "all", N = 1000, ID = FALSE, cl = 4)
 ```
 ### 2.5. Plot selected lineage-specific genes.
 ```
-plot_multiple(cds_F, "LHX6", names(cds_F@lineages))
+  plot_multiple(cds_F, "LHX6", names(cds_F@lineages))
+```
+### 2.7. Finally, format all results and write them to two tables (lineage-specific genes and branch-specific genes).
+```
+  res = compile_metatracker_results(cds_F)
+  write.table(res$lineage_genes, "lineage_genes_IN.tsv", sep = "\t", quote = F, row.names = F)
+  write.table(res$branch_genes, "branch_genes_IN.tsv", sep = "\t", quote = F, row.names = F)
 ```
