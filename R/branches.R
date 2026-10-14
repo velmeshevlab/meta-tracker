@@ -27,7 +27,7 @@ format_lineage_genes <- function(cds, type = NULL, p_cutoff = 0.05,
 .format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05,
                                           FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4,
                                           dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05,
-                                          threshold = 0.1, p_adjust = "BH",
+                                          threshold_N = 100, threshold_ratio = 0.01, p_adjust = "BH",
                                           specificity = "high", dynamic_test = "Moran",
                                           type = NULL) {
   lineages = names(cds@lineages)
@@ -40,7 +40,7 @@ format_lineage_genes <- function(cds, type = NULL, p_cutoff = 0.05,
   is_quasi <- !is.null(type) && type == "quasipoisson"
 
   #First filter out genes that express in fewer than 100 cells
-  expressed_genes <- .filter_by_expression_lineage(cds=cds, lineage=lineage, mode = "number", N = 100, ratio = 0.01)
+  expressed_genes <- .filter_by_expression_lineage(cds=cds, lineage=lineage, mode = "number", N = threshold_N, ratio = threshold_ratio)
   common_genes <- intersect(expressed_genes, rownames(pattern_genes))
   pattern_genes <- pattern_genes[common_genes, , drop = FALSE]
   common_genes <- intersect(expressed_genes, rownames(diffend_genes))
