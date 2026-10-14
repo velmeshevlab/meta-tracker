@@ -4,12 +4,12 @@
 format_lineage_genes <- function(cds, type = NULL, p_cutoff = 0.05,
                                           FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4,
                                           dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05,
-                                          threshold = 0.1, p_adjust = "BH",
+                                          threshold_N = 100, threshold_ratio = 0.01, p_adjust = "BH",
                                           specificity = "high", dynamic_test = "Moran"){
   lineages <- names(cds@lineages)
   for (lineage in lineages) {
     # 1. Generate the filtered genes
-    lin_genes <- .format_lineage_specific_genes(lineage, cds, type = type, p_cutoff = p_cutoff, FC_pattern_cutoff = FC_pattern_cutoff, FC_diffend_cutoff = FC_diffend_cutoff, dynamic_I_cutoff = dynamic_I_cutoff, dynamic_p_cutoff = dynamic_p_cutoff, threshold = threshold, p_adjust = p_adjust, specificity = specificity, dynamic_test = dynamic_test)
+    lin_genes <- .format_lineage_specific_genes(lineage, cds, type = type, p_cutoff = p_cutoff, FC_pattern_cutoff = FC_pattern_cutoff, FC_diffend_cutoff = FC_diffend_cutoff, dynamic_I_cutoff = dynamic_I_cutoff, dynamic_p_cutoff = dynamic_p_cutoff, threshold_N = threshold_N, threshold_ratio = threshold_ratio, p_adjust = p_adjust, specificity = specificity, dynamic_test = dynamic_test)
 
     # 2. Get the existing per-lineage node from the SAME object we are updating
     #    (was `cds_F` before -- a stray global reference).
@@ -291,9 +291,11 @@ find_branches <- function(cds, drop_non_binary = TRUE) {
 #' @return A data.frame (meta_p, median_FC, branch), ordered by |median_FC|.
 #' @export
 format_branch_specific_genes <- function(branch_point, cds, branch_number = 1,
-                                         p_cutoff = 0.05, FC_cutoff = 0.2,
-                                         dynamic_p_cutoff = 0.05, dynamic_FC_cutoff = 0.1,
-                                         p_adjust = "BH", dynamic_test = "Moran") {
+                                         p_cutoff = 0.05,
+                                          FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4,
+                                          dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05,
+                                          threshold_N = 100, threshold_ratio = 0.01, p_adjust = "BH",
+                                          specificity = "high", dynamic_test = "Moran") {
   branches_1 <- branch_point[[branch_number]]
   branches_2 <- if (branch_number == 1) branch_point[[2]] else branch_point[[1]]
 
@@ -303,7 +305,7 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1,
     lineage_genes <- .get_lineage_test_tables(cds, lineage)$pattern
     # 1. drop genes expressed in fewer than 100 cells
     expressed_genes <- .filter_by_expression_lineage(cds = cds, lineage = lineage,
-                                                     mode = "number", N = 100, ratio = 0.01)
+                                                     mode = "number", N = threshold_N, ratio = threshold_ratio)
     common_genes  <- intersect(expressed_genes, rownames(lineage_genes))
     lineage_genes <- lineage_genes[common_genes, , drop = FALSE]
     # 2. keep only dynamic genes (Moran I / padj), if requested and available
@@ -406,7 +408,11 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1,
 #' @return \code{cds} with \code{metadata(cds)$branch_genes} populated.
 #' @export
 find_branch_genes <- function(cds, branch_numbers = c(1, 2), drop_non_binary = TRUE,
-                              write = FALSE, out_dir = ".", ...) {
+                              write = FALSE, p_cutoff = 0.05,
+                                          FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4,
+                                          dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05,
+                                          threshold_N = 100, threshold_ratio = 0.01, p_adjust = "BH",
+                                          specificity = "high", dynamic_test = "Moran", out_dir = ".", ...) {
   branches <- .find_branches(cds, drop_non_binary = drop_non_binary)
   if (length(branches) == 0) {
     warning("No branch points found; nothing to store.", call. = FALSE)
@@ -420,7 +426,7 @@ find_branch_genes <- function(cds, branch_numbers = c(1, 2), drop_non_binary = T
     for (bn in branch_numbers) {
       if (bn > length(branch_point)) next
       key <- paste0(names(branches)[index], "_B", bn)
-      tab <- format_branch_specific_genes(branch_point, cds, branch_number = bn, ...)
+      tab <- format_branch_specific_genes(branch_point, cds, p_cutoff = p_cutoff, FC_pattern_cutoff = FC_pattern_cutoff, FC_diffend_cutoff = FC_diffend_cutoff, dynamic_I_cutoff = dynamic_I_cutoff, dynamic_p_cutoff = dynamic_p_cutoff, threshold_N = threshold_N, threshold_ratio = threshold_ratio, p_adjust = p_adjust, specificity = specificity, dynamic_test = dynamic_test, branch_number = bn, ...)
       out[[key]] <- tab
       if (write) {
         utils::write.table(tab, file = file.path(out_dir, paste0(key, "_branch_genes.tsv")),
@@ -436,7 +442,11 @@ find_branch_genes <- function(cds, branch_numbers = c(1, 2), drop_non_binary = T
 }# Branch-point detection and lineage-specific gene formatting.
 
 #' @export
-format_lineage_genes <- function(cds, type = NULL){
+format_lineage_genes <- function(cds, type = NULL, p_cutoff = 0.05,
+                                          FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4,
+                                          dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05,
+                                          threshold_N = 100, threshold_ratio = 0.01, p_adjust = "BH",
+                                          specificity = "high", dynamic_test = "Moran"){
   lineages <- names(cds@lineages)
   for (lineage in lineages) {
     # 1. Generate the filtered genes
