@@ -439,30 +439,6 @@ find_branch_genes <- function(cds, branch_numbers = c(1, 2), drop_non_binary = T
   cds
 }# Branch-point detection and lineage-specific gene formatting.
 
-#' @export
-format_lineage_genes <- function(cds, type = NULL, p_cutoff = 0.05,
-                                          FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4,
-                                          dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05,
-                                          threshold_N = 100, threshold_ratio = 0.01, p_adjust = "BH",
-                                          specificity = "high", dynamic_test = "Moran"){
-  lineages <- names(cds@lineages)
-  for (lineage in lineages) {
-    # 1. Generate the filtered genes
-    lin_genes <- .format_lineage_specific_genes(lineage, cds, type = type)
-
-    # 2. Get the existing per-lineage node from the SAME object we are updating
-    #    (was `cds_F` before -- a stray global reference).
-    lineage_genes_orig <- cds@lineage_genes[[lineage]]
-
-    # 3. Update the object
-    cds@lineage_genes[[lineage]] <- list(
-      "lineage_genes" = lineage_genes_orig,
-      "filtered"      = lin_genes
-    )
-  }
-  cds
-}
-
 .format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05,
                                           FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4,
                                           dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05,
