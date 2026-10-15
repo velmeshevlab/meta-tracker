@@ -309,17 +309,17 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1,
     common_genes  <- intersect(expressed_genes, rownames(lineage_genes))
     lineage_genes <- lineage_genes[common_genes, , drop = FALSE]
     # 2. keep only dynamic genes (Moran I / padj), if requested and available
-    if (!isFALSE(dynamic_FC_cutoff)) {
+    if (!isFALSE(dynamic_I_cutoff)) {
       dynamic <- cds@dynamic_genes[[lineage]]
       if (is.null(dynamic)) {
         warning(sprintf(paste0("No @dynamic_genes for lineage '%s'; skipping the dynamic ",
                                "filter. Run within_lineage_DE_par() first, or set ",
-                               "dynamic_FC_cutoff = FALSE."), lineage), call. = FALSE)
+                               "dynamic_I_cutoff = FALSE."), lineage), call. = FALSE)
       } else {
         dynamic_genes <- if (dynamic_test == "Moran")
-          rownames(dynamic[dynamic$I >= dynamic_FC_cutoff & dynamic$padj <= dynamic_p_cutoff, ])
+          rownames(dynamic[dynamic$I >= dynamic_I_cutoff & dynamic$padj <= dynamic_p_cutoff, ])
         else
-          rownames(dynamic[dynamic$scaled_FC >= dynamic_FC_cutoff, ])
+          rownames(dynamic[dynamic$scaled_FC >= dynamic_I_cutoff, ])
         common_genes  <- intersect(dynamic_genes, rownames(lineage_genes))
         lineage_genes <- lineage_genes[common_genes, , drop = FALSE]
       }
