@@ -4,7 +4,7 @@
 format_lineage_genes <- function(cds, type = NULL, p_cutoff = 0.05,
                                           FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4,
                                           dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05,
-                                          threshold_N = 100, threshold_ratio = 0.01, threshold_mode = "number", p_adjust = "BH",
+                                          threshold_N = 100, threshold_ratio = 0.01, threshold_mode = "ratio", p_adjust = "BH",
                                           specificity = "high", dynamic_test = "Moran"){
   lineages <- names(cds@lineages)
   for (lineage in lineages) {
@@ -27,7 +27,7 @@ format_lineage_genes <- function(cds, type = NULL, p_cutoff = 0.05,
 .format_lineage_specific_genes <- function(lineage, cds, p_cutoff = 0.05,
                                           FC_pattern_cutoff = 0.2, FC_diffend_cutoff = 0.4,
                                           dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05,
-                                          threshold_N = 100, threshold_ratio = 0.01, threshold_mode = "number", p_adjust = "BH",
+                                          threshold_N = 100, threshold_ratio = 0.01, threshold_mode = "ratio", p_adjust = "BH",
                                           specificity = "high", dynamic_test = "Moran",
                                           type = NULL) {
   lineages = names(cds@lineages)
@@ -293,7 +293,7 @@ find_branches <- function(cds, drop_non_binary = TRUE) {
 format_branch_specific_genes <- function(branch_point, cds, branch_number = 1,
                                          p_cutoff = 0.05,
                                           FC_cutoff = 0.2, dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05,
-                                          threshold_N = 100, threshold_ratio = 0.01, threshold_mode = "number", p_adjust = "BH",
+                                          threshold_N = 100, threshold_ratio = 0.01, threshold_mode = "ratio", p_adjust = "BH",
                                           specificity = "high", dynamic_test = "Moran") {
   branches_1 <- branch_point[[branch_number]]
   branches_2 <- if (branch_number == 1) branch_point[[2]] else branch_point[[1]]
@@ -409,7 +409,7 @@ format_branch_specific_genes <- function(branch_point, cds, branch_number = 1,
 find_branch_genes <- function(cds, branch_numbers = c(1, 2), drop_non_binary = TRUE,
                               write = FALSE, p_cutoff = 0.05,
                                           FC_cutoff = 0.2,  dynamic_I_cutoff = 0.1, dynamic_p_cutoff = 0.05,
-                                          threshold_N = 100, threshold_ratio = 0.01, threshold_mode = "number", p_adjust = "BH",
+                                          threshold_N = 100, threshold_ratio = 0.01, threshold_mode = "ratio", p_adjust = "BH",
                                           specificity = "high", dynamic_test = "Moran", out_dir = ".", ...) {
   branches <- .find_branches(cds, drop_non_binary = drop_non_binary)
   if (length(branches) == 0) {
