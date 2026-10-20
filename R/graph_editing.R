@@ -32,7 +32,7 @@
 #' @export
 densify_lineage_graphs <- function(cds, spacing = NULL, factor = 1.5,
                                    reduction_method = "UMAP",
-                                   update_principal_graph = TRUE) {
+                                   update_principal_graph = FALSE) {
   lineages <- names(cds@graphs)
   if (length(lineages) == 0) {
     warning("No lineage graphs in cds@graphs; nothing to do.", call. = FALSE)
